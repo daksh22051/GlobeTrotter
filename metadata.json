@@ -1,6 +1,0 @@
-{
-  "name": "GlobeTrotter",
-  "description": "Plan smarter. Travel better. An AI-powered personalized travel planning platform.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
