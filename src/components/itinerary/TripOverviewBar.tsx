@@ -1,5 +1,5 @@
 import React from 'react';
-import { MapPin, Calendar, Users, Compass, Wallet, Sparkles } from 'lucide-react';
+import { MapPin, Calendar, Wallet } from 'lucide-react';
 import { Trip } from '../../types/trip';
 
 interface TripOverviewBarProps {
@@ -7,20 +7,12 @@ interface TripOverviewBarProps {
 }
 
 export const TripOverviewBar: React.FC<TripOverviewBarProps> = ({ trip }) => {
-  const travelersDisplay =
-    trip.travelersCount > 1 ? `${trip.travelersCount} travellers` : 'Solo traveller';
+  if (!trip) return null;
 
   const nights = Math.max(0, (trip.durationDays || 1) - 1);
   const durationDisplay = `${trip.durationDays} ${trip.durationDays === 1 ? 'day' : 'days'}${
     nights > 0 ? ` · ${nights} ${nights === 1 ? 'night' : 'nights'}` : ''
   }`;
-
-  const paceDisplay =
-    trip.travelPace === 'relaxed'
-      ? 'Relaxed pace'
-      : trip.travelPace === 'fast-paced'
-      ? 'Fast-paced'
-      : 'Balanced pace';
 
   const formattedBudget = `${trip.currency || '₹'}${trip.budget.toLocaleString()}`;
 
@@ -41,18 +33,6 @@ export const TripOverviewBar: React.FC<TripOverviewBarProps> = ({ trip }) => {
             <Calendar className="w-3.5 h-3.5 text-[#20B8A6]" />
             <span>{durationDisplay}</span>
             <span className="text-[#838F8B] font-normal">({trip.dateDisplay})</span>
-          </div>
-
-          {/* Travellers */}
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#F9F7F1] border border-[#EAE6DD] text-xs font-semibold text-[#17201D] shrink-0">
-            <Users className="w-3.5 h-3.5 text-[#5E6B67]" />
-            <span>{travelersDisplay}</span>
-          </div>
-
-          {/* Pace */}
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#F9F7F1] border border-[#EAE6DD] text-xs font-semibold text-[#17201D] shrink-0">
-            <Compass className="w-3.5 h-3.5 text-[#FFB020]" />
-            <span>{paceDisplay}</span>
           </div>
 
           {/* Budget */}

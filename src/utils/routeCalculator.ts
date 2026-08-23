@@ -8,6 +8,13 @@ import { Coordinates, MapMarkerLocation, RouteSegment, DayRouteSummary, TripMapS
 import { Itinerary, ItineraryDay, ItineraryActivity } from '../types/itinerary';
 import { locationService } from '../services/locationService';
 import { calculateDayHealth } from './dayHealthCalculator';
+import { timeStringToMinutes } from './itineraryConflictDetector';
+
+function sortActivitiesChronologically(activities: ItineraryActivity[]): ItineraryActivity[] {
+  return [...activities].sort((first, second) =>
+    timeStringToMinutes(first.startTime || '09:00') - timeStringToMinutes(second.startTime || '09:00')
+  );
+}
 
 /**
  * Extracts structured MapMarkerLocation items from an Itinerary
@@ -24,7 +31,7 @@ export function extractMapMarkers(
       : itinerary.days.filter((d) => d.dayNumber === filterDayNumber);
 
   targetDays.forEach((day) => {
-    day.activities.forEach((act, index) => {
+    sortActivitiesChronologically(day.activities).forEach((act, index) => {
       const coords = locationService.resolveCoordinates(
         act,
         itinerary.destination
@@ -68,10 +75,11 @@ export function calculateDayRouteSegments(
   }
 
   const segments: RouteSegment[] = [];
+  const chronologicalActivities = sortActivitiesChronologically(day.activities);
 
-  for (let i = 0; i < day.activities.length - 1; i++) {
-    const fromAct = day.activities[i];
-    const toAct = day.activities[i + 1];
+  for (let i = 0; i < chronologicalActivities.length - 1; i++) {
+    const fromAct = chronologicalActivities[i];
+    const toAct = chronologicalActivities[i + 1];
 
     const fromCoords = locationService.resolveCoordinates(fromAct, destinationName);
     const toCoords = locationService.resolveCoordinates(toAct, destinationName);
@@ -177,24 +185,53 @@ export function calculateTripMapStats(itinerary: Itinerary): TripMapStats {
 /**
  * Computes bounding coordinates for a list of coordinates or markers
  */
-export function computeBoundingBox(markers: Coordinates[]): {
+export function computeBoundingBox(
+  markers: Coordinates[],
+  destinationName?: string
+): {
   center: [number, number];
   bounds?: [[number, number], [number, number]];
 } {
   if (markers.length === 0) {
-    return { center: [35.6762, 139.6503] };
+    const dest = locationService.getDestinationCenter(destinationName || 'Manali');
+    return {
+      center: [dest.lat, dest.lng],
+      bounds: [
+        [dest.lat - 0.05, dest.lng - 0.05],
+        [dest.lat + 0.05, dest.lng + 0.05],
+      ],
+    };
   }
 
-  let minLat = markers[0].latitude;
-  let maxLat = markers[0].latitude;
-  let minLng = markers[0].longitude;
-  let maxLng = markers[0].longitude;
+  const validMarkers = markers.filter(
+    (marker) =>
+      typeof marker.latitude === 'number' &&
+      typeof marker.longitude === 'number' &&
+      Number.isFinite(marker.latitude) &&
+      Number.isFinite(marker.longitude)
+  );
 
-  markers.forEach((m) => {
-    minLat = Math.min(minLat, m.latitude);
-    maxLat = Math.max(maxLat, m.latitude);
-    minLng = Math.min(minLng, m.longitude);
-    maxLng = Math.max(maxLng, m.longitude);
+  if (validMarkers.length === 0) {
+    const dest = locationService.getDestinationCenter(destinationName || 'Manali');
+    return {
+      center: [dest.lat, dest.lng],
+      bounds: [
+        [dest.lat - 0.05, dest.lng - 0.05],
+        [dest.lat + 0.05, dest.lng + 0.05],
+      ],
+    };
+  }
+
+  let minLat = validMarkers[0].latitude;
+  let maxLat = validMarkers[0].latitude;
+  let minLng = validMarkers[0].longitude;
+  let maxLng = validMarkers[0].longitude;
+
+  validMarkers.forEach((marker) => {
+    minLat = Math.min(minLat, marker.latitude);
+    maxLat = Math.max(maxLat, marker.latitude);
+    minLng = Math.min(minLng, marker.longitude);
+    maxLng = Math.max(maxLng, marker.longitude);
   });
 
   const centerLat = (minLat + maxLat) / 2;

@@ -19,6 +19,7 @@ import {
 import { ItineraryActivity, ItineraryConflict } from '../../types/itinerary';
 import { formatTimeDisplay, calculateEndTime } from '../../utils/itineraryConflictDetector';
 import { formatCurrency } from '../../utils/currency';
+import { getActivityImage, handleActivityImageError } from '../../utils/activityImage';
 
 interface TimelineActivityCardProps {
   activity: ItineraryActivity;
@@ -163,17 +164,16 @@ export const TimelineActivityCard: React.FC<TimelineActivityCardProps> = ({
             </div>
 
             {/* Thumbnail Image */}
-            {activity.image && (
-              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden bg-[#F4F1EA] shrink-0 border border-[#EAE6DD]/80">
-                <img
-                  src={activity.image}
-                  alt={activity.title}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  referrerPolicy="no-referrer"
-                  loading="lazy"
-                />
-              </div>
-            )}
+            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden bg-[#F4F1EA] shrink-0 border border-[#EAE6DD]/80">
+              <img
+                src={getActivityImage(activity)}
+                alt={activity.title}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                referrerPolicy="no-referrer"
+                loading="lazy"
+                onError={(event) => handleActivityImageError(event, activity.category)}
+              />
+            </div>
 
             {/* Information */}
             <div className="min-w-0 flex-1">

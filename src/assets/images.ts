@@ -54,6 +54,40 @@ export const TRAVEL_IMAGES = {
   destGoa: 'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?auto=format&fit=crop&w=900&q=80', // Goa golden sands & palms
   destSantorini: 'https://images.unsplash.com/photo-1570077188670-e3a8d69ac5ff?auto=format&fit=crop&w=900&q=80', // Santorini whitewashed sunset
 
+  // Category Specific High-Quality fallbacks
+  catPlace: 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=800&q=80',
+  catHotel: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=800&q=80',
+  catFood: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=800&q=80',
+  catExperience: 'https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=800&q=80',
+
+  // Keyword to Photo ID mappings for "Sane" dynamic imagery
+  keywords: {
+    temple: 'https://images.unsplash.com/photo-1503899036084-c55cdd92da26',
+    museum: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34',
+    mountain: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b',
+    beach: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e',
+    coffee: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93',
+    luxury: 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb',
+    hiking: 'https://images.unsplash.com/photo-1472396961693-142e6e269027',
+    sushi: 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c',
+    pasta: 'https://images.unsplash.com/photo-1563379926898-05f4575a45d8',
+    nightlife: 'https://images.unsplash.com/photo-1514525253361-bee8718a300a',
+    garden: 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e',
+    street_food: 'https://images.unsplash.com/photo-1551024601-bec78aea704b',
+    viewpoint: 'https://images.unsplash.com/photo-1470770841072-f978cf4d019e',
+    palace: 'https://images.unsplash.com/photo-1585123334904-845d60e97b29',
+    castle: 'https://images.unsplash.com/photo-1533154683836-84ea7a0bc310',
+    market: 'https://images.unsplash.com/photo-1533900298318-6b8da08a523e',
+    park: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e',
+    monument: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23',
+    waterfall: 'https://images.unsplash.com/photo-1433086966358-54859d0ed716',
+    lake: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb',
+    river: 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1',
+    forest: 'https://images.unsplash.com/photo-1448375240586-882707db888b',
+    temple_india: 'https://images.unsplash.com/photo-1514222139-b7b6bb23c72c',
+    himalayas: 'https://images.unsplash.com/photo-1544735716-392fe2489ffa',
+  },
+
   // Inspiration Categories
   inspireWeekend: 'https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=800&q=80',
   inspireGems: 'https://images.unsplash.com/photo-1513584684374-8bab748fbf90?auto=format&fit=crop&w=800&q=80',

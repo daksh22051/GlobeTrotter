@@ -43,8 +43,8 @@ export const DaySelector: React.FC<DaySelectorProps> = ({
 
   return (
     <div className="w-full bg-[#FFFDF8] border-b border-[#EAE6DD] py-2.5">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center gap-2.5 overflow-x-auto no-scrollbar py-1">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 min-w-0">
+        <div className="flex items-center gap-2.5 overflow-x-auto no-scrollbar py-1 px-2 sm:px-1.5 scroll-px-2 sm:scroll-px-1.5">
           {days.map((day) => {
             const isSelected = day.dayNumber === selectedDayNumber;
             const health = dayHealths[day.dayNumber];
@@ -52,10 +52,14 @@ export const DaySelector: React.FC<DaySelectorProps> = ({
 
             // Determine status color
             let healthColor = 'text-[#20B8A6] bg-[#EAF8F5] border-[#20B8A6]/30';
-            if (health?.status === 'Busy') {
-              healthColor = 'text-[#FFB020] bg-[#FFF8E7] border-[#FFB020]/30';
-            } else if (health?.status === 'Overloaded') {
-              healthColor = 'text-[#E55837] bg-[#FFF0EC] border-[#FF6B4A]/30';
+            if (health?.conflictCount && health.conflictCount > 0) {
+              healthColor = health.status === 'Overloaded'
+                ? 'text-[#E55837] bg-[#FFF0EC] border-[#FF6B4A]/30'
+                : 'text-[#B45309] bg-[#FFF8E7] border-[#FFB020]/30';
+            } else if (health?.status === 'Excellent') {
+              healthColor = 'text-[#179E8E] bg-[#EAF8F5] border-[#20B8A6]/30';
+            } else {
+              healthColor = 'text-[#2E86DE] bg-[#EBF5FB] border-[#BDC3C7]';
             }
 
             return (

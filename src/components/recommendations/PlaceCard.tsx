@@ -1,5 +1,5 @@
 import React from 'react';
-import { Star, MapPin, Clock, Sun, Bookmark, Check, Plus, Sparkles, Quote } from 'lucide-react';
+import { Star, MapPin, Clock, Sun, Bookmark, Check, Plus, Quote } from 'lucide-react';
 import { Recommendation } from '../../types/recommendation';
 import { formatCurrency } from '../../utils/currency';
 
@@ -34,7 +34,6 @@ export const PlaceCard: React.FC<PlaceCardProps> = ({
         <div className="absolute top-3 left-3 right-3 flex items-center justify-between z-10">
           {/* Match Score Badge */}
           <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-black/75 backdrop-blur-md border border-white/20 text-white text-xs font-black shadow-xs">
-            <Sparkles className="w-3 h-3 text-[#20B8A6]" />
             <span className="text-[#20B8A6]">{item.matchScore}%</span>
             <span className="text-[10px] text-white/80 font-normal">Match</span>
           </div>

@@ -31,9 +31,21 @@ export function optimizeItineraryLocally(itinerary: Itinerary, trip?: Trip): Opt
 
   const updatedDays: ItineraryDay[] = [];
   const excessUnscheduled: ItineraryActivity[] = [...(itinerary.unscheduledActivities || [])];
+  const seenAcrossItinerary = new Set<string>();
 
   for (const day of itinerary.days || []) {
-    const rawActivities = [...(day.activities || [])];
+    const seenActivities = new Set<string>();
+    const rawActivities = (day.activities || []).filter((activity) => {
+      const identity = activity.recommendationId || `${activity.title}|${activity.location}`;
+      const key = identity.trim().toLowerCase();
+      if (seenActivities.has(key) || seenAcrossItinerary.has(key)) {
+        excessUnscheduled.push({ ...activity, status: 'Unscheduled' });
+        return false;
+      }
+      seenActivities.add(key);
+      seenAcrossItinerary.add(key);
+      return true;
+    });
     if (rawActivities.length === 0) {
       updatedDays.push(day);
       continue;
@@ -157,6 +169,23 @@ export function optimizeItineraryLocally(itinerary: Itinerary, trip?: Trip): Opt
         status: 'Scheduled',
       });
       currentMinutePointer += (nextAct.durationMinutes || 60) + standardBuffer;
+    }
+
+    let nextAvailableMinute = 9 * 60;
+    for (let index = 0; index < scheduledList.length; index++) {
+      const activity = scheduledList[index];
+      const requestedMinute = timeStringToMinutes(activity.startTime);
+      const previousActivity = scheduledList[index - 1];
+      const travelMinutes = previousActivity
+        ? estimateTravelTimeMinutes(previousActivity.location, activity.location)
+        : 0;
+      const startMinute = Math.max(requestedMinute, nextAvailableMinute);
+
+      scheduledList[index] = {
+        ...activity,
+        startTime: minutesToTimeString(startMinute),
+      };
+      nextAvailableMinute = startMinute + (activity.durationMinutes || 60) + Math.max(standardBuffer, travelMinutes);
     }
 
     // If day was overloaded, preserve remaining into excessUnscheduled (SAFETY)

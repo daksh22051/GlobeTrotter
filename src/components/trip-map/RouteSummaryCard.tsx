@@ -23,7 +23,7 @@ export const RouteSummaryCard: React.FC<RouteSummaryCardProps> = ({
   stats,
   selectedDayNumber,
 }) => {
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   return (
     <div className="rounded-2xl bg-white/95 backdrop-blur-md border border-[#EAE6DD] shadow-xl overflow-hidden font-sans transition-all">

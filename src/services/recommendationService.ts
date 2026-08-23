@@ -96,10 +96,36 @@ export const recommendationService = {
       };
     });
 
-    // Sort descending by score, then rating
-    scored.sort((a, b) => b.matchScore - a.matchScore || b.rating - a.rating);
+    // Separate domestic (India) and international for intelligent balanced mix
+    const domestic = scored.filter((d) => d.country.toLowerCase() === 'india' || d.isDomestic);
+    const international = scored.filter((d) => d.country.toLowerCase() !== 'india' && !d.isDomestic);
 
-    return scored.slice(0, limit);
+    // Sort both descending by score
+    domestic.sort((a, b) => b.matchScore - a.matchScore || b.rating - a.rating);
+    international.sort((a, b) => b.matchScore - a.matchScore || b.rating - a.rating);
+
+    // If requesting 4 items, present 2 domestic and 2 international (or balanced proportion)
+    const result: ScoredDestination[] = [];
+    const targetDomestic = Math.floor(limit / 2);
+    const targetInternational = limit - targetDomestic;
+
+    result.push(...domestic.slice(0, targetDomestic));
+    result.push(...international.slice(0, targetInternational));
+
+    // If either ran out, fill from the other
+    if (result.length < limit) {
+      const remainingNeeded = limit - result.length;
+      const alreadyIds = new Set(result.map((r) => r.id));
+      const leftovers = scored
+        .filter((s) => !alreadyIds.has(s.id))
+        .sort((a, b) => b.matchScore - a.matchScore);
+      result.push(...leftovers.slice(0, remainingNeeded));
+    }
+
+    // Sort final result by match score
+    result.sort((a, b) => b.matchScore - a.matchScore);
+
+    return result;
   },
 
   /**
@@ -113,9 +139,11 @@ export const recommendationService = {
       (d) =>
         d.name.toLowerCase().includes(q) ||
         d.country.toLowerCase().includes(q) ||
+        (d.region && d.region.toLowerCase().includes(q)) ||
         d.shortDescription.toLowerCase().includes(q) ||
         d.tags.some((t) => t.toLowerCase().includes(q)) ||
         d.bestFor.toLowerCase().includes(q)
     );
   },
 };
+

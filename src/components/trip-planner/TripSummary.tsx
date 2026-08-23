@@ -5,7 +5,6 @@ import {
   Users,
   Compass,
   Wallet,
-  Sparkles,
   ChevronDown,
   ChevronUp,
   AlertCircle,
@@ -32,11 +31,13 @@ interface TripSummaryProps {
   tripType: TripType;
   budget: number;
   currency: CurrencyCode;
-  budgetStyle: BudgetStyle;
-  travelPace: TravelStyle;
+  budgetStyle?: BudgetStyle;
+  travelPace?: TravelStyle;
   transportPreferences: TransportPreference[];
-  accommodationStyle: AccommodationStyle;
+  accommodationStyle?: AccommodationStyle;
   interests: string[];
+  destinationId?: string;
+  isBudgetConfigured?: boolean;
 }
 
 export const TripSummary: React.FC<TripSummaryProps> = ({
@@ -56,10 +57,16 @@ export const TripSummary: React.FC<TripSummaryProps> = ({
   transportPreferences,
   accommodationStyle,
   interests,
+  destinationId,
+  isBudgetConfigured = false,
 }) => {
   const [isMobileExpanded, setIsMobileExpanded] = useState(false);
   const totalTravelers = adultsCount + childrenCount;
   const currConfig = CURRENCIES[currency] || CURRENCIES.INR;
+  const hasValidDestination = Boolean(destinationId && destination.trim());
+  const selectedBudgetStyle = budgetStyle || 'balanced';
+  const selectedTravelPace = travelPace || 'balanced';
+  const selectedAccommodationStyle = accommodationStyle || 'boutique_hotel';
 
   // Calculate days & nights
   const durationInfo = React.useMemo(() => {
@@ -79,12 +86,16 @@ export const TripSummary: React.FC<TripSummaryProps> = ({
 
   // Estimated Cost calculation (deterministic)
   const costEstimate = React.useMemo(() => {
+    if (!hasValidDestination) {
+      return { totalEstimated: 0, dailyRate: 0 };
+    }
+
     return estimateTripCost({
       destination,
       days: durationInfo.days || 3,
       travelersCount: totalTravelers,
-      budgetStyle,
-      accommodationStyle,
+      budgetStyle: selectedBudgetStyle,
+      accommodationStyle: selectedAccommodationStyle,
       transportPreferences,
       targetCurrency: currency,
     });
@@ -92,10 +103,11 @@ export const TripSummary: React.FC<TripSummaryProps> = ({
     destination,
     durationInfo.days,
     totalTravelers,
-    budgetStyle,
-    accommodationStyle,
+    selectedBudgetStyle,
+    selectedAccommodationStyle,
     transportPreferences,
     currency,
+    hasValidDestination,
   ]);
 
   // Planning Readiness calculation
@@ -125,8 +137,9 @@ export const TripSummary: React.FC<TripSummaryProps> = ({
     transportPreferences,
   ]);
 
-  const isOverBudget = budget > 0 && costEstimate.totalEstimated > budget * 1.25;
-  const isWellBudgeted = budget > 0 && costEstimate.totalEstimated <= budget;
+  const hasTargetBudget = hasValidDestination && isBudgetConfigured && budget > 0;
+  const isOverBudget = hasTargetBudget && costEstimate.totalEstimated > budget;
+  const isWellBudgeted = hasTargetBudget && costEstimate.totalEstimated <= budget;
 
   return (
     <aside
@@ -157,7 +170,7 @@ export const TripSummary: React.FC<TripSummaryProps> = ({
 
         <div className="flex items-center gap-2">
           <span className="text-xs font-black text-[#FF6B4A]">
-            {currConfig.symbol}{budget.toLocaleString()}
+            {isBudgetConfigured ? `${currConfig.symbol}${budget.toLocaleString()}` : 'Not set'}
           </span>
           {isMobileExpanded ? (
             <ChevronUp className="w-4 h-4 text-[#98A29F]" />
@@ -205,10 +218,7 @@ export const TripSummary: React.FC<TripSummaryProps> = ({
         {/* Planning Readiness Score Bar */}
         <div className="p-3.5 rounded-2xl bg-[#FCFBF8] border border-[#EAE6DD] space-y-2">
           <div className="flex items-center justify-between text-xs font-bold">
-            <span className="text-[#4A5551] flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-[#FF6B4A]" />
-              <span>Planning Readiness</span>
-            </span>
+            <span className="text-[#4A5551]">Planning Readiness</span>
             <span className="text-[#FF6B4A] font-black">{readiness.percentage}%</span>
           </div>
 
@@ -261,7 +271,7 @@ export const TripSummary: React.FC<TripSummaryProps> = ({
           <div className="flex items-center justify-between py-1 border-b border-[#F4F1EA]">
             <span className="text-[#98A29F] font-semibold">Style & Pace</span>
             <span className="font-bold text-[#17201D] capitalize truncate max-w-[150px]">
-              {tripType} · {travelPace}
+              {tripType} · {selectedTravelPace}
             </span>
           </div>
 
@@ -272,12 +282,13 @@ export const TripSummary: React.FC<TripSummaryProps> = ({
               <span>Your Target</span>
             </span>
             <span className="font-black text-[#FF6B4A]">
-              {currConfig.symbol}{budget.toLocaleString()} {currency}
+              {isBudgetConfigured ? `${currConfig.symbol}${budget.toLocaleString()} ${currency}` : 'Not set'}
             </span>
           </div>
         </div>
 
         {/* Estimated Cost Breakdown (Frontend Deterministic Logic) */}
+        {hasValidDestination && (
         <div className="p-3.5 rounded-2xl bg-gradient-to-br from-[#FFF9F6] to-[#FFF3EE] border border-[#FFD9CE] space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider text-[#FF6B4A]">
@@ -293,7 +304,11 @@ export const TripSummary: React.FC<TripSummaryProps> = ({
                 <AlertCircle className="w-3 h-3" />
                 <span>Adjust Target</span>
               </span>
-            ) : null}
+            ) : (
+              <span className="text-[10px] font-extrabold text-[#68736F] bg-white px-2 py-0.5 rounded-md">
+                Set target to compare
+              </span>
+            )}
           </div>
 
           <div className="flex items-baseline justify-between">
@@ -306,33 +321,11 @@ export const TripSummary: React.FC<TripSummaryProps> = ({
           </div>
 
           <p className="text-[10px] text-[#68736F] leading-tight">
-            * Estimated based on your selected {accommodationStyle.replace('_', ' ')} stay and {budgetStyle.replace('_', ' ')} tier.
+            * Estimated based on your selected {selectedAccommodationStyle.replace('_', ' ')} stay and {selectedBudgetStyle.replace('_', ' ')} tier.
           </p>
         </div>
-
-        {/* Selected Interests Chips */}
-        {interests.length > 0 && (
-          <div>
-            <span className="text-[11px] font-bold uppercase tracking-wider text-[#98A29F] block mb-1.5">
-              Highlights Included ({interests.length})
-            </span>
-            <div className="flex flex-wrap gap-1.5">
-              {interests.slice(0, 5).map((i) => (
-                <span
-                  key={i}
-                  className="px-2.5 py-0.5 rounded-full bg-[#F4F1EA] text-[#4A5551] text-[10px] font-bold truncate max-w-[120px]"
-                >
-                  {i}
-                </span>
-              ))}
-              {interests.length > 5 && (
-                <span className="px-2 py-0.5 rounded-full bg-[#FFF2EE] text-[#FF6B4A] text-[10px] font-bold">
-                  +{interests.length - 5} more
-                </span>
-              )}
-            </div>
-          </div>
         )}
+
       </div>
     </aside>
   );

@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   Compass,
   Home,
@@ -7,11 +7,13 @@ import {
   PlusCircle,
   Globe2,
   Wallet,
-  Calendar,
+  CalendarDays,
   User as UserIcon,
   Settings,
   LogOut,
-  Sparkles,
+  Camera,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
 import { User } from '../../types';
 import { authService } from '../../services/authService';
@@ -23,17 +25,23 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onLogout }) => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [isCollapsed, setIsCollapsed] = React.useState(false);
 
-  const primaryNavItems = [
+  const navigationItems = [
     { label: 'Home', path: '/dashboard', icon: Home },
     { label: 'My Trips', path: '/trips', icon: Briefcase },
-    { label: 'Plan New Trip', path: '/plan-trip', icon: PlusCircle, highlight: true },
     { label: 'Explore', path: '/explore', icon: Globe2 },
   ];
 
-  const secondaryNavItems = [
+  const studioItems = [
+    { label: 'Photoshoot Studio', path: '/photoshoot-planner', icon: Camera },
+  ];
+
+  const planningItems = [
+    { label: 'Plan New Trip', path: '/plan-trip', icon: PlusCircle },
     { label: 'Budget', path: '/budget', icon: Wallet },
-    { label: 'Calendar', path: '/calendar', icon: Calendar },
+    { label: 'Calendar', path: '/calendar', icon: CalendarDays },
   ];
 
   const bottomNavItems = [
@@ -53,10 +61,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onLogout }) => {
     <aside
       id="dashboard-sidebar"
       aria-label="Main Navigation"
-      className="hidden md:flex flex-col w-64 lg:w-72 bg-white border-r border-[#EAE6DD] min-h-screen sticky top-0 h-screen select-none shrink-0 z-20"
+      className={`hidden md:flex flex-col ${isCollapsed ? 'w-20 bg-[#F4F1EA]' : 'w-64 lg:w-72 bg-white/90 backdrop-blur-xl'} transition-all duration-300 ease-in-out border-r border-[#EAE6DD]/80 min-h-screen sticky top-0 h-screen select-none shrink-0 z-20 shadow-[10px_0_30px_rgba(23,32,29,0.03)]`}
     >
       {/* Brand Header */}
-      <div className="p-6 pb-5 flex items-center justify-between border-b border-[#F4F1EA]">
+      <div className={`p-5 pb-4 flex items-center border-b border-[#F4F1EA] ${isCollapsed ? 'justify-center px-2' : 'justify-between'}`}>
         <button
           type="button"
           onClick={() => navigate('/dashboard')}
@@ -66,7 +74,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onLogout }) => {
           <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#FF6B4A] to-[#FF8E72] flex items-center justify-center text-white shadow-sm shadow-[#FF6B4A]/25 group-hover:scale-105 transition-transform duration-200">
             <Compass className="w-5 h-5" />
           </div>
-          <div>
+          <div className={isCollapsed ? 'hidden' : 'block'}>
             <span className="font-extrabold text-lg text-[#17201D] tracking-tight block">
               GlobeTrotter
             </span>
@@ -75,95 +83,62 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onLogout }) => {
             </span>
           </div>
         </button>
+        <button
+          type="button"
+          onClick={() => setIsCollapsed((previous) => !previous)}
+          className="rounded-xl p-2 text-[#68736F] transition-all duration-200 hover:bg-[#FFF2EE] hover:text-[#FF6B4A] hover:scale-105 cursor-pointer"
+          aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          {isCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+        </button>
       </div>
 
       {/* Navigation Scrollable Area */}
-      <div className="flex-1 overflow-y-auto px-4 py-5 space-y-6">
-        {/* Primary Navigation */}
-        <div>
-          <div className="px-3 mb-2 text-[11px] font-bold uppercase tracking-wider text-[#98A29F]">
-            Navigation
+      <div className={`flex-1 overflow-y-auto py-4 space-y-4 ${isCollapsed ? 'px-2' : 'px-3.5'}`}>
+        {[
+          { label: 'Navigation', items: navigationItems },
+          { label: 'Studio & Experiences', items: studioItems },
+          { label: 'Planning Tools', items: planningItems },
+        ].map((section) => (
+          <div key={section.label}>
+            <div className={`px-3 mb-2 text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#98A29F] ${isCollapsed ? 'hidden' : 'block'}`}>
+              {section.label}
+            </div>
+            <nav className="space-y-1">
+              {section.items.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    className={({ isActive }) =>
+                      `group relative flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-sm font-semibold transition-all duration-200 cursor-pointer ${isCollapsed ? 'justify-center px-2' : ''} ${
+                        isActive
+                          ? 'bg-[#FFF2EE] text-[#FF6B4A] shadow-[0_4px_16px_rgba(255,107,74,0.12)]'
+                          : 'text-[#4A5551] hover:-translate-y-0.5 hover:bg-[#F9F7F1] hover:text-[#17201D]'
+                      }`
+                    }
+                    aria-current={location.pathname === item.path ? 'page' : undefined}
+                  >
+                    {({ isActive }) => (
+                      <>
+                        <span className={`absolute left-0 h-6 w-1 rounded-r-full transition-all duration-200 ${isActive ? 'bg-[#FF6B4A] shadow-[0_0_10px_rgba(255,107,74,0.7)]' : 'bg-transparent group-hover:bg-[#FFB09B]'}`} />
+                        <Icon className={`w-4.5 h-4.5 shrink-0 transition-transform duration-200 ${isActive ? 'scale-105' : 'group-hover:scale-110'}`} />
+                        <span className={isCollapsed ? 'hidden' : 'block'}>{item.label}</span>
+                      </>
+                    )}
+                  </NavLink>
+                );
+              })}
+            </nav>
           </div>
-          <nav className="space-y-1">
-            {primaryNavItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <NavLink
-                  key={item.path}
-                  to={item.path}
-                  className={({ isActive }) =>
-                    `flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-sm font-semibold transition-all duration-150 cursor-pointer ${
-                      isActive
-                        ? 'bg-[#FFF2EE] text-[#FF6B4A] shadow-xs'
-                        : 'text-[#4A5551] hover:text-[#17201D] hover:bg-[#F9F7F1]'
-                    } ${item.highlight && !location.pathname.includes(item.path) ? 'text-[#FF6B4A]' : ''}`
-                  }
-                >
-                  <div className="flex items-center gap-3">
-                    <Icon className="w-4.5 h-4.5 shrink-0" />
-                    <span>{item.label}</span>
-                  </div>
-                  {item.highlight && (
-                    <span className="w-2 h-2 rounded-full bg-[#FF6B4A] animate-pulse" />
-                  )}
-                </NavLink>
-              );
-            })}
-          </nav>
-        </div>
+        ))}
 
-        {/* Separator */}
-        <div className="h-px bg-[#F4F1EA] mx-3" />
-
-        {/* Secondary Navigation */}
-        <div>
-          <div className="px-3 mb-2 text-[11px] font-bold uppercase tracking-wider text-[#98A29F]">
-            Planning Tools
-          </div>
-          <nav className="space-y-1">
-            {secondaryNavItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <NavLink
-                  key={item.path}
-                  to={item.path}
-                  className={({ isActive }) =>
-                    `flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-sm font-semibold transition-all duration-150 cursor-pointer ${
-                      isActive
-                        ? 'bg-[#FFF2EE] text-[#FF6B4A] shadow-xs'
-                        : 'text-[#4A5551] hover:text-[#17201D] hover:bg-[#F9F7F1]'
-                    }`
-                  }
-                >
-                  <Icon className="w-4.5 h-4.5 shrink-0" />
-                  <span>{item.label}</span>
-                </NavLink>
-              );
-            })}
-          </nav>
-        </div>
-
-        {/* Quick CTA Box */}
-        <div className="mx-1 p-4 rounded-2xl bg-gradient-to-br from-[#F6FBFA] to-[#EDFAF7] border border-[#D0F0EA] relative overflow-hidden">
-          <div className="flex items-center gap-1.5 text-[#20B8A6] text-xs font-bold mb-1.5">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>AI Assistant</span>
-          </div>
-          <p className="text-xs text-[#4A5551] leading-relaxed mb-3">
-            Get personalized multi-city itinerary recommendations in seconds.
-          </p>
-          <button
-            type="button"
-            onClick={() => navigate('/plan-trip')}
-            className="w-full py-2 px-3 rounded-xl bg-[#20B8A6] hover:bg-[#1CA393] text-white text-xs font-bold transition-colors shadow-xs cursor-pointer"
-          >
-            Create Itinerary
-          </button>
-        </div>
       </div>
 
       {/* Bottom Area: Settings + User Mini Profile */}
-      <div className="p-4 border-t border-[#EAE6DD] bg-[#FCFBF8] space-y-3">
+      <div className={`p-3 border-t border-[#EAE6DD] bg-[#FCFBF8] space-y-2 ${isCollapsed ? 'px-2' : ''}`}>
         <nav className="space-y-0.5">
           {bottomNavItems.map((item) => {
             const Icon = item.icon;
@@ -172,7 +147,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onLogout }) => {
                 key={item.path}
                 to={item.path}
                 className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
+                  `flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${isCollapsed ? 'justify-center px-2' : ''} ${
                     isActive
                       ? 'bg-[#FFF2EE] text-[#FF6B4A]'
                       : 'text-[#68736F] hover:text-[#17201D] hover:bg-[#F4F1EA]'
@@ -180,7 +155,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onLogout }) => {
                 }
               >
                 <Icon className="w-4 h-4 shrink-0" />
-                <span>{item.label}</span>
+                <span className={isCollapsed ? 'hidden' : 'block'}>{item.label}</span>
               </NavLink>
             );
           })}
@@ -204,7 +179,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onLogout }) => {
                 {userInitials}
               </div>
             )}
-            <div className="min-w-0">
+            <div className={`min-w-0 ${isCollapsed ? 'hidden' : 'block'}`}>
               <p className="text-xs font-bold text-[#17201D] truncate group-hover:text-[#FF6B4A] transition-colors">
                 {userDisplayName}
               </p>

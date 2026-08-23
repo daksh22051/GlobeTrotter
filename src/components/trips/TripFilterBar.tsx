@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, SlidersHorizontal, ArrowUpDown, X, Heart, Pin } from 'lucide-react';
+import { Search, SlidersHorizontal, ArrowUpDown, X } from 'lucide-react';
 import { TripFilterState, countActiveFilters, DEFAULT_TRIP_FILTERS } from '../../utils/tripFilters';
 import { TripSortOption, SORT_OPTIONS } from '../../utils/tripSorting';
 
@@ -11,8 +11,6 @@ interface TripFilterBarProps {
   onResetFilters: () => void;
   sortOption: TripSortOption;
   onSortChange: (sort: TripSortOption) => void;
-  onToggleFavoriteFilter: () => void;
-  onTogglePinnedFilter: () => void;
   totalFilteredCount: number;
 }
 
@@ -24,8 +22,6 @@ export const TripFilterBar: React.FC<TripFilterBarProps> = ({
   onResetFilters,
   sortOption,
   onSortChange,
-  onToggleFavoriteFilter,
-  onTogglePinnedFilter,
   totalFilteredCount,
 }) => {
   const activeFiltersCount = countActiveFilters(filters);
@@ -57,44 +53,6 @@ export const TripFilterBar: React.FC<TripFilterBarProps> = ({
 
         {/* Action Controls Group */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
-          {/* Quick Filter: Favorites */}
-          <button
-            type="button"
-            onClick={onToggleFavoriteFilter}
-            className={`inline-flex items-center gap-1.5 px-3 py-2.5 rounded-2xl text-xs font-bold transition-all border whitespace-nowrap cursor-pointer ${
-              filters.favoriteOnly
-                ? 'bg-[#FFF2EE] border-[#FFD9CE] text-[#FF6B4A] shadow-2xs'
-                : 'bg-white border-[#EAE6DD] text-[#556960] hover:text-[#17201D] hover:bg-[#F9F7F1]'
-            }`}
-            title="Show only favorites"
-          >
-            <Heart
-              className={`w-3.5 h-3.5 ${
-                filters.favoriteOnly ? 'fill-[#FF6B4A] text-[#FF6B4A]' : 'text-[#8C9B95]'
-              }`}
-            />
-            <span>Favorites</span>
-          </button>
-
-          {/* Quick Filter: Pinned */}
-          <button
-            type="button"
-            onClick={onTogglePinnedFilter}
-            className={`inline-flex items-center gap-1.5 px-3 py-2.5 rounded-2xl text-xs font-bold transition-all border whitespace-nowrap cursor-pointer ${
-              filters.pinnedOnly
-                ? 'bg-[#E8F8F5] border-[#B2E6DC] text-[#1F8A70] shadow-2xs'
-                : 'bg-white border-[#EAE6DD] text-[#556960] hover:text-[#17201D] hover:bg-[#F9F7F1]'
-            }`}
-            title="Show only pinned journeys"
-          >
-            <Pin
-              className={`w-3.5 h-3.5 ${
-                filters.pinnedOnly ? 'fill-[#1F8A70] text-[#1F8A70]' : 'text-[#8C9B95]'
-              }`}
-            />
-            <span>Pinned</span>
-          </button>
-
           {/* Expanded Filter Modal Trigger */}
           <button
             type="button"

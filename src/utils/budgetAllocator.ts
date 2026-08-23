@@ -116,6 +116,7 @@ export function autoAllocateBudget(trip: Trip): Record<ExpenseCategory, number> 
       break;
     case 'adventure':
     case 'photography':
+    case 'photoshoot':
       allocation.activities += 8;
       allocation.transport += 2;
       allocation.accommodation -= 5;

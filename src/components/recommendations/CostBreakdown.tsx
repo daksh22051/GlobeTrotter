@@ -6,7 +6,6 @@ import {
   Plane,
   Compass,
   ShoppingBag,
-  Sparkles,
   ChevronRight,
   Info,
   CheckCircle2,
@@ -192,7 +191,6 @@ export const CostBreakdown: React.FC<CostBreakdownProps> = ({
           onClick={() => setShowOptimizeModal(true)}
           className="inline-flex items-center gap-1.5 text-xs font-extrabold text-[#FF6B4A] hover:text-[#E55837] transition-colors cursor-pointer self-start sm:self-auto"
         >
-          <Sparkles className="w-3.5 h-3.5" />
           <span>Optimize my trip budget</span>
           <ChevronRight className="w-3.5 h-3.5" />
         </button>
@@ -211,7 +209,6 @@ export const CostBreakdown: React.FC<CostBreakdownProps> = ({
             </button>
 
             <div className="flex items-center gap-2 mb-3">
-              <Sparkles className="w-5 h-5 text-[#FF6B4A]" />
               <h3 className="text-lg font-black text-[#17201D]">Trip Budget Optimization Tips</h3>
             </div>
 

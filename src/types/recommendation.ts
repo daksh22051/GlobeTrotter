@@ -23,6 +23,9 @@ export interface Recommendation {
   currency: CurrencyCode;
   duration?: string; // e.g. "2–3 hours", "Full Day", "Overnight"
   bestTime?: string; // e.g. "Morning & Golden Hour", "Sunset & Evening"
+  latitude?: number;
+  longitude?: number;
+  searchKeyword?: string;
   tags: string[];
   whyRecommended: string;
   matchScore: number; // e.g. 95 (for 95% match)
@@ -40,6 +43,12 @@ export interface Recommendation {
     activityType: string;
     fitnessLevel?: string;
     groupSize?: string;
+  };
+  photoshootDetails?: {
+    theme: string;
+    locations: string[];
+    packageIncludes: string[];
+    packageDuration: string;
   };
 }
 

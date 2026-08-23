@@ -142,13 +142,64 @@ export function detectMissingMeals(day: ItineraryDay): {
 }
 
 /**
+ * Repairs overlapping or impossible transitions before a day is displayed.
+ */
+export function normalizeDaySchedule(day: ItineraryDay): ItineraryDay {
+  const activities = [...(day.activities || [])]
+    .filter((activity) => activity.status !== 'Unscheduled')
+    .sort((first, second) =>
+      timeStringToMinutes(first.startTime || '09:00') - timeStringToMinutes(second.startTime || '09:00')
+    );
+  let nextAvailableMinute = 9 * 60;
+  let changed = false;
+  const normalizedActivitiesForTravel: ItineraryActivity[] = [];
+
+  const normalizedActivities = activities.map((activity, index) => {
+    const previous = normalizedActivitiesForTravel[index - 1];
+    const travelMinutes = previous
+      ? estimateTravelTimeMinutes(previous.location, activity.location, { lat: previous.latitude, lng: previous.longitude }, { lat: activity.latitude, lng: activity.longitude })
+      : 0;
+    const requestedMinute = timeStringToMinutes(activity.startTime || '09:00');
+    const startMinute = Math.max(requestedMinute, nextAvailableMinute);
+    const normalized = startMinute === requestedMinute
+      ? activity
+      : { ...activity, startTime: minutesToTimeString(startMinute) };
+
+    if (normalized !== activity) changed = true;
+    nextAvailableMinute = startMinute + (activity.durationMinutes || 60) + travelMinutes;
+    normalizedActivitiesForTravel[index] = normalized;
+    return normalized;
+  });
+
+  if (!changed || normalizedActivities.length === day.activities.length) {
+    return changed ? { ...day, activities: normalizedActivities } : day;
+  }
+
+  return {
+    ...day,
+    activities: [
+      ...normalizedActivities,
+      ...(day.activities || []).filter((activity) => activity.status === 'Unscheduled'),
+    ],
+  };
+}
+
+export function normalizeItinerarySchedule(itinerary: Itinerary): Itinerary {
+  return {
+    ...itinerary,
+    days: (itinerary.days || []).map(normalizeDaySchedule),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+/**
  * Calculates day health metric and status
  */
 export function calculateDayHealth(day: ItineraryDay): DayHealthResult {
   const activities = (day.activities || []).filter((a) => a.status !== 'Unscheduled');
   const conflicts = detectDayConflicts(day);
   
-  let score = 95;
+  let score = 100;
   const reasons: string[] = [];
 
   // Deduct for conflicts
@@ -189,14 +240,16 @@ export function calculateDayHealth(day: ItineraryDay): DayHealthResult {
 
   // Evaluate activity density
   if (activities.length === 0) {
-    score = 80;
+    score = 70;
     reasons.push('No activities scheduled yet');
-  } else if (activities.length >= 6) {
-    score -= 15;
-    reasons.push('Heavy activity volume');
-  } else if (activities.length >= 3 && activities.length <= 5) {
-    score = Math.min(100, score + 5);
+  } else if (activities.length <= 2) {
+    score -= 10;
+    reasons.push('Light activity volume');
+  } else if (activities.length <= 5) {
     reasons.push('Ideal activity pacing (3-5 spots)');
+  } else {
+    score -= Math.min(30, (activities.length - 5) * 8);
+    reasons.push('Heavy activity volume');
   }
 
   // Evaluate free time

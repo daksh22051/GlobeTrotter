@@ -73,17 +73,7 @@ export const TripStatusTabs: React.FC<TripStatusTabsProps> = ({
                 : 'bg-white border border-[#EAE6DD] text-[#556960] hover:text-[#17201D] hover:border-[#17201D]/40 hover:bg-[#F9F7F1]'
             }`}
           >
-            <span className={isActive ? 'text-white' : ''}>{tab.icon}</span>
             <span>{tab.label}</span>
-            <span
-              className={`inline-flex items-center justify-center px-1.5 py-0.5 min-w-[20px] rounded-full text-[10px] font-extrabold ${
-                isActive
-                  ? 'bg-white/20 text-white'
-                  : 'bg-[#F4F1EA] text-[#68736F]'
-              }`}
-            >
-              {tab.count}
-            </span>
           </button>
         );
       })}

@@ -2,16 +2,11 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Trip } from '../../types/trip';
 import { TripCoverImage } from './TripCoverImage';
-import { getTripStatus, getTripCountdown } from '../../utils/tripStatus';
-import { calculateTripProgress } from '../../utils/tripProgressCalculator';
-import { calculateTripHealthSummary } from '../../utils/tripHealthSummary';
 import { determineNextTripAction } from '../../utils/nextTripAction';
-import { formatCurrency } from '../../utils/currency';
 import {
   Calendar,
   MapPin,
   Users,
-  Wallet,
   MoreVertical,
   Heart,
   Pin,
@@ -19,12 +14,8 @@ import {
   Trash2,
   Edit3,
   ExternalLink,
-  Sparkles,
   ArrowRight,
-  Clock,
-  CheckCircle2,
   FileText,
-  Activity,
 } from 'lucide-react';
 
 interface TripCardProps {
@@ -50,10 +41,6 @@ export const TripCard: React.FC<TripCardProps> = ({
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const status = getTripStatus(trip);
-  const countdown = getTripCountdown(trip);
-  const progress = calculateTripProgress(trip);
-  const health = calculateTripHealthSummary(trip);
   const nextAction = determineNextTripAction(trip);
 
   const travelersCount = trip.travelersCount || 1;
@@ -97,43 +84,8 @@ export const TripCard: React.FC<TripCardProps> = ({
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent pointer-events-none" />
 
-        {/* Top Badges: Status + Pinned/Favorite Icons */}
+        {/* Floating Favorite and More Actions */}
         <div className="absolute top-3 left-3 right-3 flex items-center justify-between z-10">
-          {/* Status Badge */}
-          <div className="flex items-center gap-1.5">
-            {status === 'upcoming' && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-[#17201D]/80 backdrop-blur-md text-[#FAF8F5] border border-white/20 shadow-xs">
-                <Calendar className="w-3 h-3 text-[#FF6B4A]" />
-                {countdown.label}
-              </span>
-            )}
-            {status === 'ongoing' && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-[#20B8A6] text-white shadow-xs animate-pulse">
-                <Clock className="w-3 h-3" />
-                {countdown.label}
-              </span>
-            )}
-            {status === 'completed' && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-[#556960]/90 backdrop-blur-md text-white border border-white/20">
-                <CheckCircle2 className="w-3 h-3 text-[#20B8A6]" />
-                Completed
-              </span>
-            )}
-            {status === 'draft' && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-[#E08A00] text-white shadow-xs">
-                <Sparkles className="w-3 h-3" />
-                Draft
-              </span>
-            )}
-
-            {trip.isPinned && (
-              <span className="inline-flex items-center gap-0.5 px-2 py-1 rounded-full text-[10px] font-bold bg-[#E8F8F5] text-[#1F8A70] border border-[#B2E6DC] shadow-xs">
-                <Pin className="w-3 h-3 fill-[#1F8A70]" />
-                Pinned
-              </span>
-            )}
-          </div>
-
           {/* Quick Floating Actions (Heart & Menu) */}
           <div className="flex items-center gap-1.5">
             <button
@@ -265,7 +217,7 @@ export const TripCard: React.FC<TripCardProps> = ({
         </div>
       </div>
 
-      {/* 2. Card Body: Dates, Travelers, Health, Budget */}
+      {/* 2. Card Body: Essential trip details */}
       <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-4">
         {/* Meta Line: Dates & Travelers */}
         <div className="flex items-center justify-between text-xs text-[#556960] font-medium border-b border-[#F4F1EA] pb-3">
@@ -275,62 +227,7 @@ export const TripCard: React.FC<TripCardProps> = ({
           </div>
           <div className="flex items-center gap-1 shrink-0 ml-2 font-semibold text-[#17201D]">
             <Users className="w-3.5 h-3.5 text-[#8C9B95]" />
-            <span>
-              {trip.durationDays || 3}d · {travelersCount} {travelersCount === 1 ? 'pax' : 'pax'}
-            </span>
-          </div>
-        </div>
-
-        {/* Financial & Health Matrix */}
-        <div className="grid grid-cols-2 gap-2">
-          {/* Budget Widget */}
-          <div className="bg-[#FAF8F5] rounded-2xl p-2.5 border border-[#EAE6DD]/60">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-[#8C9B95] flex items-center gap-1">
-              <Wallet className="w-3 h-3 text-[#FF6B4A]" />
-              Budget
-            </div>
-            <div className="text-sm font-extrabold text-[#17201D] mt-0.5 truncate">
-              {formatCurrency(trip.budget || 50000, trip.currency || 'INR')}
-            </div>
-          </div>
-
-          {/* Health Score Widget */}
-          <div className={`rounded-2xl p-2.5 border ${health.badgeBg}`}>
-            <div className="text-[10px] font-bold uppercase tracking-wider flex items-center justify-between">
-              <span className="flex items-center gap-1 text-[#68736F]">
-                <Activity className="w-3 h-3 text-[#20B8A6]" />
-                Health
-              </span>
-              <span className={`font-extrabold ${health.colorClass}`}>{health.score}</span>
-            </div>
-            <div className={`text-xs font-bold truncate mt-0.5 ${health.badgeText}`}>
-              {health.label}
-            </div>
-          </div>
-        </div>
-
-        {/* Planning Progress Bar */}
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between text-xs">
-            <span className="font-semibold text-[#68736F] flex items-center gap-1">
-              <span>Planning</span>
-              <span className="text-[10px] font-normal text-[#8C9B95]">
-                ({progress.scheduledActivitiesCount} activities)
-              </span>
-            </span>
-            <span className="font-extrabold text-[#17201D]">{progress.percentage}%</span>
-          </div>
-          <div className="w-full h-2 bg-[#F4F1EA] rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all duration-500 ${
-                progress.percentage >= 80
-                  ? 'bg-[#20B8A6]'
-                  : progress.percentage >= 40
-                  ? 'bg-[#FF6B4A]'
-                  : 'bg-[#E08A00]'
-              }`}
-              style={{ width: `${progress.percentage}%` }}
-            />
+            <span>{travelersCount} {travelersCount === 1 ? 'traveler' : 'travelers'}</span>
           </div>
         </div>
 
@@ -348,17 +245,6 @@ export const TripCard: React.FC<TripCardProps> = ({
             <ArrowRight className="w-3.5 h-3.5 group-hover/btn:translate-x-0.5 transition-transform" />
           </button>
 
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpenSummary(trip);
-            }}
-            title="View quick trip summary"
-            className="p-2.5 rounded-2xl bg-[#FAF8F5] hover:bg-[#F4F1EA] border border-[#EAE6DD] text-[#556960] hover:text-[#17201D] transition-colors cursor-pointer"
-          >
-            <FileText className="w-4 h-4" />
-          </button>
         </div>
       </div>
     </div>

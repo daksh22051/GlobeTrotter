@@ -10,6 +10,7 @@ import {
   Plus,
 } from 'lucide-react';
 import { ItineraryActivity } from '../../types/itinerary';
+import { getActivityImage, handleActivityImageError } from '../../utils/activityImage';
 
 interface UnscheduledActivitiesAreaProps {
   activities: ItineraryActivity[];
@@ -93,13 +94,11 @@ export const UnscheduledActivitiesArea: React.FC<UnscheduledActivitiesAreaProps>
 
                 <div className="w-10 h-10 rounded-xl overflow-hidden bg-[#F4F1EA] shrink-0 border border-[#EAE6DD]/60">
                   <img
-                    src={
-                      act.image ||
-                      'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=200&q=80'
-                    }
+                    src={getActivityImage(act)}
                     alt={act.title}
                     referrerPolicy="no-referrer"
                     className="w-full h-full object-cover"
+                    onError={(event) => handleActivityImageError(event, act.category)}
                   />
                 </div>
 

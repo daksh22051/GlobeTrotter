@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Trip } from '../../types/trip';
 import { TripCoverImage } from './TripCoverImage';
@@ -43,6 +43,24 @@ export const TripSummaryDrawer: React.FC<TripSummaryDrawerProps> = ({
   onDelete,
 }) => {
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const originalOverflow = document.body.style.overflow;
+    const originalPaddingRight = document.body.style.paddingRight;
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+
+    document.body.style.overflow = 'hidden';
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    }
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      document.body.style.paddingRight = originalPaddingRight;
+    };
+  }, [isOpen]);
 
   if (!isOpen || !trip) return null;
 

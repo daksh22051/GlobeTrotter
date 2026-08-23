@@ -17,7 +17,7 @@ export const ShareTripModal: React.FC<ShareTripModalProps> = ({
 
   if (!isOpen) return null;
 
-  const shareUrl = window.location.href;
+  const shareUrl = `${window.location.origin}${window.location.pathname}${window.location.search}${window.location.hash}`;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(shareUrl);

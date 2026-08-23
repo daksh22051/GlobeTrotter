@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { authService } from '../../services/authService';
 import { SocialLoginButton } from './SocialLoginButton';
+import { GoogleAuthModal } from './GoogleAuthModal';
 import { PasswordStrengthMeter } from './PasswordStrengthMeter';
 import { FormErrors, SignUpData } from '../../types/auth';
 
@@ -34,6 +35,7 @@ export const SignUpForm: React.FC = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [isGoogleModalOpen, setIsGoogleModalOpen] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [createdUserName, setCreatedUserName] = useState('');
   const [errors, setErrors] = useState<FormErrors>({});
@@ -140,13 +142,18 @@ export const SignUpForm: React.FC = () => {
   };
 
   // Google Sign-Up Handler
-  const handleGoogleSignUp = async () => {
+  const handleGoogleSignUp = () => {
+    setIsGoogleModalOpen(true);
+  };
+
+  const handleSelectGoogleAccount = async (account: { email: string; name: string; avatarUrl?: string }) => {
     setIsGoogleLoading(true);
     setErrors({});
 
     try {
-      const response = await authService.signUpWithGoogle();
+      const response = await authService.signUpWithGoogle(account);
       if (response.success && response.session) {
+        setIsGoogleModalOpen(false);
         setCreatedUserName(response.session.user.name);
         setIsSuccess(true);
 
@@ -154,11 +161,13 @@ export const SignUpForm: React.FC = () => {
           navigate('/onboarding');
         }, 1300);
       } else {
+        setIsGoogleModalOpen(false);
         setErrors({
           general: response.error || 'Google registration was canceled.',
         });
       }
     } catch {
+      setIsGoogleModalOpen(false);
       setErrors({
         general: 'Google sign up is currently unavailable. Please use email registration.',
       });
@@ -203,6 +212,14 @@ export const SignUpForm: React.FC = () => {
 
   return (
     <div className="w-full max-w-md mx-auto">
+      {/* Google Authentication Account Picker Modal */}
+      <GoogleAuthModal
+        isOpen={isGoogleModalOpen}
+        onClose={() => setIsGoogleModalOpen(false)}
+        onSelectAccount={handleSelectGoogleAccount}
+        isLoading={isGoogleLoading}
+      />
+
       {/* Header Info */}
       <div className="mb-6">
         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FFF8ED] text-[#FF6B4A] text-xs font-bold mb-3 border border-[#FFE8D6]">

@@ -11,6 +11,44 @@ import { UserPreferences } from '../types/profile';
 import { DESTINATION_RECOMMENDATIONS_DATABASE, generateProceduralDestinationSet, RawDestinationRecommendations } from '../data/mockRecommendations';
 import { convertCurrency } from './currency';
 import { FEATURED_DESTINATIONS } from '../data/destinations';
+import { locationService } from '../services/locationService';
+import { getPhotoshootPackages } from '../data/photoshootPackages';
+
+const distanceBetween = (
+  first: { latitude?: number; longitude?: number },
+  second: { latitude?: number; longitude?: number }
+): number => {
+  if (
+    typeof first.latitude !== 'number' ||
+    typeof first.longitude !== 'number' ||
+    typeof second.latitude !== 'number' ||
+    typeof second.longitude !== 'number'
+  ) return Number.POSITIVE_INFINITY;
+
+  const latitudeDelta = (second.latitude - first.latitude) * Math.PI / 180;
+  const longitudeDelta = (second.longitude - first.longitude) * Math.PI / 180;
+  const latitudeOne = first.latitude * Math.PI / 180;
+  const latitudeTwo = second.latitude * Math.PI / 180;
+  const a = Math.sin(latitudeDelta / 2) ** 2 +
+    Math.cos(latitudeOne) * Math.cos(latitudeTwo) * Math.sin(longitudeDelta / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
+
+const orderByArrivalProximity = <T extends { latitude?: number; longitude?: number }>(
+  items: T[],
+  trip: Trip
+): T[] => {
+  if (!trip.arrivalLocation?.trim()) return items;
+
+  const arrivalCoordinates = locationService.resolveCoordinates(
+    { title: trip.arrivalLocation, location: trip.arrivalLocation },
+    trip.destination
+  );
+
+  return [...items].sort((first, second) =>
+    distanceBetween(arrivalCoordinates, first) - distanceBetween(arrivalCoordinates, second)
+  );
+};
 
 /**
  * Calculates individualized match score and explains why it fits the traveler
@@ -251,9 +289,10 @@ export const buildTripRecommendations = (
   overrides?: Partial<TripPlannerDraft>
 ): TripRecommendations => {
   const destKey = trip.destination.toLowerCase().trim();
+  const proceduralData = generateProceduralDestinationSet(trip.destination, trip.country);
   
   // Find matched curated database or generate procedural fallback
-  let rawData: RawDestinationRecommendations = DESTINATION_RECOMMENDATIONS_DATABASE[destKey];
+  let rawData: RawDestinationRecommendations | undefined = DESTINATION_RECOMMENDATIONS_DATABASE[destKey];
   if (!rawData) {
     // Check partial name match in database
     const matchedKey = Object.keys(DESTINATION_RECOMMENDATIONS_DATABASE).find((k) =>
@@ -262,15 +301,43 @@ export const buildTripRecommendations = (
     if (matchedKey) {
       rawData = DESTINATION_RECOMMENDATIONS_DATABASE[matchedKey];
     } else {
-      rawData = generateProceduralDestinationSet(trip.destination, trip.country);
+      rawData = proceduralData;
     }
   }
 
+  const completeCategory = <K extends keyof Pick<RawDestinationRecommendations, 'places' | 'hotels' | 'food' | 'experiences'>>(
+    category: K
+  ): RawDestinationRecommendations[K] => {
+    const curated = Array.isArray(rawData?.[category]) ? rawData[category] : [];
+    const fallback = proceduralData[category];
+    const existingIds = new Set(curated.map((item) => item.id));
+    const targetLength = Math.max(10, curated.length);
+    const completed = [...curated];
+
+    for (const item of fallback) {
+      if (completed.length >= targetLength) break;
+      if (!existingIds.has(item.id)) {
+        completed.push(item);
+        existingIds.add(item.id);
+      }
+    }
+
+    return completed as RawDestinationRecommendations[K];
+  };
+
+  const placesData = completeCategory('places');
+  const hotelsData = completeCategory('hotels');
+  const foodData = completeCategory('food');
+  const experiencesData = completeCategory('experiences');
+
   // Score each category
-  const places = rawData.places.map((p) => scoreRecommendation(p, trip, userPrefs, overrides));
-  const hotels = rawData.hotels.map((h) => scoreRecommendation(h, trip, userPrefs, overrides));
-  const food = rawData.food.map((f) => scoreRecommendation(f, trip, userPrefs, overrides));
-  const attractions = rawData.experiences.map((e) => scoreRecommendation(e, trip, userPrefs, overrides));
+  const places = placesData.map((p) => scoreRecommendation(p, trip, userPrefs, overrides));
+  const hotels = hotelsData.map((h) => scoreRecommendation(h, trip, userPrefs, overrides));
+  const food = foodData.map((f) => scoreRecommendation(f, trip, userPrefs, overrides));
+  const attractions = experiencesData.map((e) => scoreRecommendation(e, trip, userPrefs, overrides));
+  if (trip.tripType === 'photoshoot') {
+    attractions.unshift(...getPhotoshootPackages(trip));
+  }
 
   // Sort each list descending by match score
   places.sort((a, b) => b.matchScore - a.matchScore);
@@ -278,9 +345,13 @@ export const buildTripRecommendations = (
   food.sort((a, b) => b.matchScore - a.matchScore);
   attractions.sort((a, b) => b.matchScore - a.matchScore);
 
-  const allRecommendations = [...places, ...hotels, ...food, ...attractions].sort(
-    (a, b) => b.matchScore - a.matchScore
-  );
+  const nearbyPlaces = orderByArrivalProximity(places, trip);
+  const nearbyHotels = orderByArrivalProximity(hotels, trip);
+  const nearbyFood = orderByArrivalProximity(food, trip);
+
+  const allRecommendations = trip.arrivalLocation?.trim()
+    ? [...nearbyHotels, ...nearbyFood, ...nearbyPlaces, ...attractions]
+    : [...places, ...hotels, ...food, ...attractions].sort((a, b) => b.matchScore - a.matchScore);
 
   const costEstimate = calculateCategoryCosts(trip, overrides);
   const aiInsight = generateAIInsight(trip, userPrefs, overrides);
@@ -294,7 +365,7 @@ export const buildTripRecommendations = (
     heroImage = matchFeatured.image;
   }
 
-  const destinationSummary = rawData.summaryTemplate || `${trip.destination} is a spectacular destination aligned with your travel preferences.`;
+  const destinationSummary = rawData?.summaryTemplate || `${trip.destination} is a spectacular destination aligned with your travel preferences.`;
 
   return {
     tripId: trip.id,
@@ -302,14 +373,14 @@ export const buildTripRecommendations = (
     country: trip.country,
     destinationSummary,
     destinationHeroImage: heroImage,
-    places,
-    hotels,
-    food,
+    places: nearbyPlaces,
+    hotels: nearbyHotels,
+    food: nearbyFood,
     attractions,
     allRecommendations,
     costEstimate,
     aiInsight,
-    travelTips: rawData.tips || [],
+    travelTips: rawData?.tips || proceduralData.tips || [],
     generatedAt: new Date().toISOString(),
     isAiGenerated: true,
     provider: 'hybrid-engine',

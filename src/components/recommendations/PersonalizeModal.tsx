@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, SlidersHorizontal, Sparkles, Check, RotateCcw } from 'lucide-react';
+import { X, SlidersHorizontal, Check, RotateCcw } from 'lucide-react';
 import { Trip, TripPlannerDraft } from '../../types/trip';
 import { TravelStyle } from '../../types/profile';
 import { formatCurrency } from '../../utils/currency';
@@ -34,16 +34,16 @@ export const PersonalizeModal: React.FC<PersonalizeModalProps> = ({
   currentOverrides,
 }) => {
   const [budget, setBudget] = useState<number>(
-    currentOverrides?.budget || trip.budget || 50000
+    currentOverrides?.budget || trip?.budget || 50000
   );
   const [travelPace, setTravelPace] = useState<TravelStyle>(
-    (currentOverrides?.travelPace || trip.travelPace || 'balanced') as TravelStyle
+    (currentOverrides?.travelPace || trip?.travelPace || 'balanced') as TravelStyle
   );
   const [accommodationStyle, setAccommodationStyle] = useState<string>(
-    currentOverrides?.accommodationStyle || trip.accommodationStyle || 'boutique_hotel'
+    currentOverrides?.accommodationStyle || trip?.accommodationStyle || 'boutique_hotel'
   );
   const [interests, setInterests] = useState<string[]>(
-    currentOverrides?.interests || trip.interests || ['Culture', 'Food & Culinary']
+    currentOverrides?.interests || trip?.interests || ['Culture', 'Food & Culinary']
   );
 
   if (!isOpen) return null;
@@ -57,10 +57,10 @@ export const PersonalizeModal: React.FC<PersonalizeModalProps> = ({
   };
 
   const handleReset = () => {
-    setBudget(trip.budget);
-    setTravelPace((trip.travelPace || 'balanced') as TravelStyle);
-    setAccommodationStyle(trip.accommodationStyle || 'boutique_hotel');
-    setInterests(trip.interests || ['Culture', 'Food & Culinary']);
+    setBudget(trip?.budget || 50000);
+    setTravelPace((trip?.travelPace || 'balanced') as TravelStyle);
+    setAccommodationStyle(trip?.accommodationStyle || 'boutique_hotel');
+    setInterests(trip?.interests || ['Culture', 'Food & Culinary']);
   };
 
   const handleApply = () => {
@@ -102,7 +102,7 @@ export const PersonalizeModal: React.FC<PersonalizeModalProps> = ({
                 Trip Budget Target
               </label>
               <span className="text-sm font-black text-[#FF6B4A]">
-                {formatCurrency(budget, trip.currency)}
+                {formatCurrency(budget, trip?.currency)}
               </span>
             </div>
             <input
@@ -116,9 +116,9 @@ export const PersonalizeModal: React.FC<PersonalizeModalProps> = ({
               className="w-full h-2 bg-[#F4F1EA] rounded-lg appearance-none cursor-pointer accent-[#FF6B4A]"
             />
             <div className="flex justify-between text-[10px] font-bold text-[#838F8B] mt-1">
-              <span>{formatCurrency(10000, trip.currency)}</span>
-              <span>{formatCurrency(250000, trip.currency)}</span>
-              <span>{formatCurrency(500000, trip.currency)}</span>
+              <span>{formatCurrency(10000, trip?.currency)}</span>
+              <span>{formatCurrency(250000, trip?.currency)}</span>
+              <span>{formatCurrency(500000, trip?.currency)}</span>
             </div>
           </div>
 
@@ -224,7 +224,7 @@ export const PersonalizeModal: React.FC<PersonalizeModalProps> = ({
               onClick={handleApply}
               className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-[#FF6B4A] hover:bg-[#E55837] text-white text-xs font-extrabold shadow-xs cursor-pointer"
             >
-              <Sparkles className="w-3.5 h-3.5" />
+              <RotateCcw className="w-3.5 h-3.5" />
               <span>Apply & Regenerate</span>
             </button>
           </div>

@@ -85,7 +85,7 @@ export const AIInsightCard: React.FC<AIInsightCardProps> = ({ preferences }) => 
             onClick={() => navigate('/explore')}
             className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-full bg-[#20B8A6] hover:bg-[#1CA393] text-white text-xs sm:text-sm font-bold shadow-md shadow-[#20B8A6]/20 active:scale-95 transition-all cursor-pointer group whitespace-nowrap"
           >
-            <span>Explore recommendations</span>
+            <span>Explore destinations</span>
             <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
           </button>
         </div>

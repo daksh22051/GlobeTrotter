@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles, Calendar, Users, Gauge, Coins, RefreshCw, SlidersHorizontal, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Calendar, Users, Gauge, Coins, RefreshCw, SlidersHorizontal, ArrowRight, ArrowLeft } from 'lucide-react';
 import { Trip } from '../../types/trip';
 import { formatCurrency } from '../../utils/currency';
 import { motion } from 'motion/react';
@@ -53,8 +53,7 @@ export const AIHero: React.FC<AIHeroProps> = ({
 
           {/* AI Badge */}
           <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#17201D]/80 backdrop-blur-md border border-white/20 text-white text-xs font-semibold shadow-xs">
-            <Sparkles className="w-3.5 h-3.5 text-[#FF8E72] animate-pulse" />
-            <span className="text-white/90">AI-powered recommendations</span>
+            <span className="text-white/90">AI Destination Brief</span>
           </div>
         </div>
 
@@ -66,7 +65,7 @@ export const AIHero: React.FC<AIHeroProps> = ({
             </span>
 
             <h1 className="text-2xl sm:text-4xl md:text-5xl font-black tracking-tight text-white drop-shadow-sm mb-2">
-              Your trip, intelligently planned.
+              Your destination, intelligently understood.
             </h1>
 
             <p className="text-xs sm:text-sm md:text-base text-white/85 max-w-2xl leading-relaxed">

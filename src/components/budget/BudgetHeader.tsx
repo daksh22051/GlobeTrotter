@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
   Sparkles,
-  Plus,
   SlidersHorizontal,
   MapPin,
   Calendar,
@@ -15,15 +14,15 @@ import { formatCurrency } from '../../utils/currency';
 
 interface BudgetHeaderProps {
   trip: Trip;
-  onOpenAddExpense: () => void;
   onOpenOptimizer: () => void;
+  isOptimizing?: boolean;
   onOpenAllocation: () => void;
 }
 
 export const BudgetHeader: React.FC<BudgetHeaderProps> = ({
   trip,
-  onOpenAddExpense,
   onOpenOptimizer,
+  isOptimizing = false,
   onOpenAllocation,
 }) => {
   const navigate = useNavigate();
@@ -32,9 +31,9 @@ export const BudgetHeader: React.FC<BudgetHeaderProps> = ({
   return (
     <header className="w-full bg-[#FFFDF8] border-b border-[#EAE6DD] sticky top-0 z-30 shadow-2xs">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 sm:py-4">
-        {/* Top breadcrumb & navigation bar */}
-        <div className="flex items-center justify-between gap-3 mb-2 sm:mb-3">
-          <div className="flex items-center gap-2">
+        {/* Top navigation, metadata, and actions */}
+        <div className="flex items-center gap-3 mb-3 sm:mb-4 min-w-0 overflow-x-auto no-scrollbar pb-1">
+          <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
               onClick={() => navigate(`/trip/${trip.id}/itinerary`)}
@@ -64,8 +63,23 @@ export const BudgetHeader: React.FC<BudgetHeaderProps> = ({
             </button>
           </div>
 
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#FFF2EE] text-[#FF6B4A] text-[11px] font-extrabold border border-[#FFE0D6]">
+              <MapPin className="w-3 h-3" />
+              {trip.destination}, {trip.country}
+            </span>
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#F5F3FF] text-[#8B5CF6] text-[11px] font-bold border border-[#DDD6FE]">
+              <Calendar className="w-3 h-3" />
+              {trip.durationDays || 3} Days
+            </span>
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#E6FAF8] text-[#0D9488] text-[11px] font-bold border border-[#B2F0E8]">
+              <Layers className="w-3 h-3" />
+              {trip.travelersCount || 1} {trip.travelersCount === 1 ? 'Traveler' : 'Travelers'}
+            </span>
+          </div>
+
           {/* Action buttons */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 ml-auto shrink-0">
             <button
               type="button"
               onClick={onOpenAllocation}
@@ -78,20 +92,12 @@ export const BudgetHeader: React.FC<BudgetHeaderProps> = ({
 
             <button
               type="button"
-              onClick={onOpenAddExpense}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#17201D] hover:bg-[#2A3833] text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Add Expense</span>
-            </button>
-
-            <button
-              type="button"
               onClick={onOpenOptimizer}
-              className="inline-flex items-center gap-2 px-3.5 sm:px-4 py-1.5 rounded-full bg-gradient-to-r from-[#FF6B4A] via-[#FF7E5F] to-[#20B8A6] text-white text-xs sm:text-sm font-black shadow-md shadow-[#FF6B4A]/25 hover:shadow-lg hover:shadow-[#FF6B4A]/30 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer"
+              disabled={isOptimizing}
+              className="inline-flex items-center gap-2 px-3.5 sm:px-4 py-1.5 rounded-full bg-gradient-to-r from-[#FF6B4A] via-[#FF7E5F] to-[#20B8A6] text-white text-xs sm:text-sm font-black shadow-md shadow-[#FF6B4A]/25 hover:shadow-lg hover:shadow-[#FF6B4A]/30 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer disabled:opacity-60 disabled:cursor-wait"
             >
               <Sparkles className="w-3.5 h-3.5 text-[#FFF275] animate-spin-slow" />
-              <span>Optimize Budget ✨</span>
+              <span>{isOptimizing ? 'Balancing...' : 'Optimize Budget'}</span>
             </button>
           </div>
         </div>
@@ -99,21 +105,6 @@ export const BudgetHeader: React.FC<BudgetHeaderProps> = ({
         {/* Title, destination badge & subtitle */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-2">
           <div>
-            <div className="flex items-center flex-wrap gap-2 mb-1">
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#FFF2EE] text-[#FF6B4A] text-[11px] font-extrabold border border-[#FFE0D6]">
-                <MapPin className="w-3 h-3" />
-                {trip.destination}, {trip.country}
-              </span>
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#F5F3FF] text-[#8B5CF6] text-[11px] font-bold border border-[#DDD6FE]">
-                <Calendar className="w-3 h-3" />
-                {trip.durationDays || 3} Days
-              </span>
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#E6FAF8] text-[#0D9488] text-[11px] font-bold border border-[#B2F0E8]">
-                <Layers className="w-3 h-3" />
-                {trip.travelersCount || 1} {trip.travelersCount === 1 ? 'Traveler' : 'Travelers'}
-              </span>
-            </div>
-
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-[#17201D] tracking-tight">
               Your trip budget
             </h1>

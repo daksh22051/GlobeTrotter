@@ -10,6 +10,37 @@ import { UserPreferences } from '../types/profile';
 import { TripRecommendations, Recommendation, EstimatedCategoryBreakdown, RecommendationCategory } from '../types/recommendation';
 import { buildTripRecommendations, calculateCategoryCosts } from '../utils/recommendationMatcher';
 import { tripService } from './tripService';
+import { TRAVEL_IMAGES } from '../assets/images';
+
+/**
+ * Resolves a high-quality "sane" image URL based on keyword or category
+ */
+const resolveSaneImage = (category: RecommendationCategory, keyword?: string): string => {
+  if (keyword) {
+    const cleanKeyword = keyword.toLowerCase().trim().replace(/\s+/g, '_');
+    const mapped = (TRAVEL_IMAGES.keywords as any)[cleanKeyword];
+    if (mapped) {
+      // Add a unique signature to avoid browser caching the exact same image if it's reused
+      return `${mapped}?auto=format&fit=crop&w=800&q=80&sig=${Math.random().toString(36).substring(7)}`;
+    }
+    
+    // If no direct map, return a high-quality Unsplash search URL as a fallback
+    // We use a variety of travel-related keywords to get different images
+    const genericTravelTerms = ['scenic', 'explore', 'adventure', 'culture', 'landmark', 'architecture', 'landscape'];
+    const randomTerm = genericTravelTerms[Math.floor(Math.random() * genericTravelTerms.length)];
+    return `https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=800&q=80&sig=${Math.random().toString(36).substring(7)}&q=${randomTerm}`;
+  }
+
+  // Fallback to category default with randomness
+  const sig = `sig=${Math.random().toString(36).substring(7)}`;
+  switch (category) {
+    case 'place': return `${TRAVEL_IMAGES.catPlace}&${sig}`;
+    case 'hotel': return `${TRAVEL_IMAGES.catHotel}&${sig}`;
+    case 'food': return `${TRAVEL_IMAGES.catFood}&${sig}`;
+    case 'experience': return `${TRAVEL_IMAGES.catExperience}&${sig}`;
+    default: return `${TRAVEL_IMAGES.catPlace}&${sig}`;
+  }
+};
 
 export interface AITravelProvider {
   name: string;
@@ -53,10 +84,10 @@ Analyze this traveler and destination blueprint:
 
 Return a valid JSON object matching the TripRecommendations schema with:
 1. "destinationSummary": A concise 2-sentence narrative on why ${destination} fits their personality and interests.
-2. "places": List of 4 top sightseeing places with name, description, category ("place"), location, rating, priceLevel ("$"/"$$"/"$$$"), estimatedCost, duration, bestTime, tags, whyRecommended, and matchScore (85-98).
-3. "hotels": List of 3 hotels/stays matching their style and budget.
-4. "food": List of 3 authentic local restaurants/food experiences.
-5. "attractions": List of 3 distinctive activities/tours.
+2. "places": List of 4 top sightseeing places with name, description, category ("place"), location, latitude, longitude, searchKeyword (e.g. "temple", "museum", "garden"), rating, priceLevel ("$"/"$$"/"$$$"), estimatedCost, duration, bestTime, tags, whyRecommended, and matchScore (85-98).
+3. "hotels": List of 3 hotels/stays with name, description, category ("hotel"), location, latitude, longitude, searchKeyword (e.g. "luxury", "boutique"), rating...
+4. "food": List of 3 authentic local restaurants with name, description, category ("food"), location, latitude, longitude, searchKeyword (e.g. "sushi", "pasta", "street_food")...
+5. "attractions": List of 3 distinctive activities with name, description, category ("experience"), location, latitude, longitude, searchKeyword (e.g. "hiking", "adventure")...
 6. "travelTips": 4 smart actionable local travel tips.
 7. "aiInsight": Highlight quote, pacing description, and 2 advice points.
 Respond ONLY with valid JSON without markdown formatting.`;
@@ -101,8 +132,11 @@ const sanitizeRecommendationList = (
       name: String(raw.name || fallbackItem?.name || `Recommended ${category}`),
       category,
       description: String(raw.description || fallbackItem?.description || ''),
-      image: String(raw.image || fallbackItem?.image || 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=800&q=80'),
+      image: String(raw.image || resolveSaneImage(category, raw.searchKeyword || raw.name) || fallbackItem?.image),
       location: String(raw.location || fallbackItem?.location || `${trip.destination}, ${trip.country}`),
+      latitude: typeof raw.latitude === 'number' ? raw.latitude : fallbackItem?.latitude,
+      longitude: typeof raw.longitude === 'number' ? raw.longitude : fallbackItem?.longitude,
+      searchKeyword: raw.searchKeyword || fallbackItem?.searchKeyword,
       rating: typeof raw.rating === 'number' && !isNaN(raw.rating) ? raw.rating : (fallbackItem?.rating || 4.8),
       reviewCount: typeof raw.reviewCount === 'number' && !isNaN(raw.reviewCount) ? raw.reviewCount : (fallbackItem?.reviewCount || 600),
       priceLevel: raw.priceLevel || fallbackItem?.priceLevel || '$$',
@@ -165,16 +199,29 @@ class GeminiTravelProvider implements AITravelProvider {
       const ai = new GoogleGenAI({ apiKey });
       const prompt = buildTripRecommendationPrompt(trip, userPrefs, overrides);
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-        config: {
-          responseMimeType: 'application/json',
-          temperature: 0.7,
-        },
-      });
+      const candidateModels = ['gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.1-flash-lite', 'gemini-3.7-flash-lite'];
+      let responseText = '';
 
-      const responseText = response.text?.trim();
+      for (const m of candidateModels) {
+        try {
+          const response = await ai.models.generateContent({
+            model: m,
+            contents: prompt,
+            config: {
+              responseMimeType: 'application/json',
+              temperature: 0.7,
+            },
+          });
+          const txt = response.text?.trim();
+          if (txt) {
+            responseText = txt;
+            break;
+          }
+        } catch {
+          // Try next flash model
+        }
+      }
+
       if (!responseText) {
         return buildTripRecommendations(trip, userPrefs, overrides);
       }
@@ -348,6 +395,8 @@ class AITravelService {
         type: rec.category,
         name: rec.name,
         location: rec.location,
+        latitude: rec.latitude,
+        longitude: rec.longitude,
         image: rec.image,
         estimatedCost: rec.estimatedCost,
         currency: rec.currency,

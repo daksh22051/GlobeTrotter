@@ -37,6 +37,9 @@ export interface ItineraryDay {
   dateDisplay: string; // "Tuesday, Nov 13"
   title: string; // "Arrival & Shibuya Vibes"
   theme?: string; // "Culture & History"
+  cityName?: string;
+  cityCountry?: string;
+  stopIndex?: number;
   activities: ItineraryActivity[];
 }
 

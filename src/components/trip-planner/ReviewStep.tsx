@@ -9,7 +9,6 @@ import {
   Car,
   Heart,
   Edit3,
-  Sparkles,
   ArrowRight,
   Loader2,
   CheckCircle2,
@@ -65,6 +64,18 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
 }) => {
   const totalTravelers = adultsCount + childrenCount;
   const currConfig = CURRENCIES[currency] || CURRENCIES.INR;
+  const activeTravelPace = travelPace || 'balanced';
+  const activeBudgetStyle = budgetStyle || 'balanced';
+  const activeAccommodationStyle = accommodationStyle || 'boutique_hotel';
+  const activeTransportPreferences = transportPreferences?.length ? transportPreferences : ['flights'];
+
+  const formatReviewValue = (value: string | undefined) => {
+    if (!value) return 'Not selected';
+    return value
+      .replace(/[_-]+/g, ' ')
+      .replace(/\b\w/g, (letter) => letter.toUpperCase())
+      .trim();
+  };
 
   // Format date range
   const formattedDates = React.useMemo(() => {
@@ -88,7 +99,6 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
       {/* Header */}
       <div>
         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FFF2EE] text-[#FF6B4A] text-xs font-bold mb-2 border border-[#FFE0D6]">
-          <Sparkles className="w-3.5 h-3.5" />
           <span>Step 04 / Review Trip</span>
         </div>
         <h2 className="text-2xl sm:text-3xl font-extrabold text-[#17201D] tracking-tight">
@@ -238,10 +248,10 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
           </div>
           <div>
             <p className="text-base font-extrabold text-[#17201D] capitalize">
-              {tripType.replace('_', ' ')} Trip
+              {(tripType || 'leisure').replace('_', ' ')} Trip
             </p>
             <p className="text-xs text-[#68736F] capitalize">
-              {travelPace} daily pace
+              {formatReviewValue(activeTravelPace)} daily pace
             </p>
           </div>
         </div>
@@ -267,7 +277,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
               {currConfig.symbol}{budget.toLocaleString()} {currency}
             </p>
             <p className="text-xs text-[#68736F] capitalize">
-              {budgetStyle.replace('_', ' ')} tier
+              {`${formatReviewValue(activeBudgetStyle)} tier`}
             </p>
           </div>
         </div>
@@ -290,10 +300,10 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
           </div>
           <div>
             <p className="text-base font-extrabold text-[#17201D] capitalize">
-              {accommodationStyle.replace('_', ' ')}
+              {formatReviewValue(activeAccommodationStyle)}
             </p>
             <p className="text-xs text-[#68736F] capitalize truncate">
-              {transportPreferences.map((t) => t.replace('_', ' ')).join(', ')}
+              {activeTransportPreferences.map((t) => formatReviewValue(t)).join(', ')}
             </p>
           </div>
         </div>

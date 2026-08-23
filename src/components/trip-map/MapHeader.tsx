@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Sparkles, Share2, Check, MapPin, Calendar, Wallet } from 'lucide-react';
+import { ArrowLeft, Share2, Check, MapPin, Calendar, Wallet } from 'lucide-react';
 import { Trip } from '../../types/trip';
 
 interface MapHeaderProps {
@@ -18,8 +18,9 @@ export const MapHeader: React.FC<MapHeaderProps> = ({
   const [copiedShare, setCopiedShare] = useState(false);
 
   const handleShareClick = () => {
+    const shareUrl = `${window.location.origin}${window.location.pathname}${window.location.search}${window.location.hash}`;
     try {
-      navigator.clipboard.writeText(window.location.href);
+      navigator.clipboard.writeText(shareUrl);
       setCopiedShare(true);
       setTimeout(() => setCopiedShare(false), 2500);
     } catch {
@@ -124,14 +125,13 @@ export const MapHeader: React.FC<MapHeaderProps> = ({
               )}
             </button>
 
-            {/* AI Optimize Route ✨ Button */}
+            {/* Optimize Route Button */}
             <button
               type="button"
               onClick={onOpenOptimize}
-              className="inline-flex items-center gap-2 px-4 sm:px-5 py-1.5 sm:py-2 rounded-full bg-gradient-to-r from-[#FF6B4A] via-[#FF7E5F] to-[#20B8A6] text-white text-xs sm:text-sm font-black shadow-md shadow-[#FF6B4A]/25 hover:shadow-lg hover:shadow-[#FF6B4A]/30 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer"
+              className="inline-flex items-center px-4 sm:px-5 py-1.5 sm:py-2 rounded-full bg-gradient-to-r from-[#FF6B4A] via-[#FF7E5F] to-[#20B8A6] text-white text-xs sm:text-sm font-black shadow-md shadow-[#FF6B4A]/25 hover:shadow-lg hover:shadow-[#FF6B4A]/30 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer"
             >
-              <Sparkles className="w-4 h-4 text-[#FFF275] animate-spin-slow" />
-              <span>Optimize Route ✨</span>
+              <span>Optimize Route</span>
             </button>
           </div>
         </div>

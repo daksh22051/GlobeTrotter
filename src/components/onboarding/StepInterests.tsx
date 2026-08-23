@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import { TravelInterest, InterestOption } from '../../types/profile';
-import { Check, Sparkles } from 'lucide-react';
+import { Check, ChevronDown, ChevronUp, Sparkles } from 'lucide-react';
 
 interface StepInterestsProps {
   selectedInterests: TravelInterest[];
@@ -29,6 +29,9 @@ export const StepInterests: React.FC<StepInterestsProps> = ({
   onChange,
   error,
 }) => {
+  const [showAllInterests, setShowAllInterests] = React.useState(false);
+  const visibleInterests = showAllInterests ? INTEREST_OPTIONS : INTEREST_OPTIONS.slice(0, 4);
+
   const toggleInterest = (id: TravelInterest) => {
     if (selectedInterests.includes(id)) {
       onChange(selectedInterests.filter((item) => item !== id));
@@ -89,7 +92,7 @@ export const StepInterests: React.FC<StepInterestsProps> = ({
 
       {/* Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-3.5">
-        {INTEREST_OPTIONS.map((option) => {
+        {visibleInterests.map((option) => {
           const isSelected = selectedInterests.includes(option.id);
 
           return (
@@ -136,6 +139,16 @@ export const StepInterests: React.FC<StepInterestsProps> = ({
           );
         })}
       </div>
+      {INTEREST_OPTIONS.length > 4 && (
+        <button
+          type="button"
+          onClick={() => setShowAllInterests((current) => !current)}
+          className="mx-auto mt-4 inline-flex items-center gap-1.5 rounded-full border border-[#EAE6DD] bg-white px-4 py-2 text-xs font-bold text-[#5E6B67] transition-colors hover:border-[#17201D] hover:text-[#17201D]"
+        >
+          <span>{showAllInterests ? 'Show less' : `Show all ${INTEREST_OPTIONS.length} interests`}</span>
+          {showAllInterests ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+        </button>
+      )}
     </div>
   );
 };

@@ -1,19 +1,26 @@
 import React from 'react';
 import { Routes, Route, Navigate, useNavigate, useParams } from 'react-router-dom';
-import { SplashPage } from '../pages/SplashPage';
-import { LoginPage } from '../pages/LoginPage';
-import { SignUpPage } from '../pages/SignUpPage';
-import { OnboardingPage } from '../pages/OnboardingPage';
-import { DashboardPage } from '../pages/DashboardPage';
-import { PlanTripPage } from '../pages/PlanTripPage';
-import { TripRecommendationsPage } from '../pages/TripRecommendationsPage';
-import { ItineraryPage } from '../pages/ItineraryPage';
-import { TripMapPage } from '../pages/TripMapPage';
-import { TripBudgetPage } from '../pages/TripBudgetPage';
-import { TripCalendarPage } from '../pages/TripCalendarPage';
-import { TripsPage } from '../pages/TripsPage';
-import { authService } from '../services/authService';
-import { tripService } from '../services/tripService';
+import { SplashPage } from '../pages/SplashPage.js';
+import { LoginPage } from '../pages/LoginPage.js';
+import { SignUpPage } from '../pages/SignUpPage.js';
+import { OnboardingPage } from '../pages/OnboardingPage.js';
+import { DashboardPage } from '../pages/DashboardPage.js';
+import { PlanTripPage } from '../pages/PlanTripPage.js';
+import { TripRecommendationsPage } from '../pages/TripRecommendationsPage.js';
+import { ItineraryPage } from '../pages/ItineraryPage.js';
+import { TripMapPage } from '../pages/TripMapPage.js';
+import { TripBudgetPage } from '../pages/TripBudgetPage.js';
+import { TripCalendarPage } from '../pages/TripCalendarPage.js';
+import { TripsPage } from '../pages/TripsPage.js';
+import { ProfilePage } from '../pages/ProfilePage.js';
+import { SharedTripPage } from '../pages/SharedTripPage.js';
+import { TravelGuidePage } from '../pages/TravelGuidePage.js';
+import { TripHealthPage } from '../pages/TripHealthPage.js';
+import { WhatIfPage } from '../pages/WhatIfPage.js';
+import { ExploreDestinationsPage } from '../pages/ExploreDestinationsPage.js';
+import PreWeddingPlanner from '../components/photoshoot/PreWeddingPlanner.jsx';
+import { authService } from '../services/authService.js';
+import { tripService } from '../services/tripService.js';
 import { ArrowLeft, Compass, Sparkles, Calendar, Layers, MapPin, Wallet, Clock } from 'lucide-react';
 
 /**
@@ -162,6 +169,15 @@ export const AppRoutes: React.FC = () => {
         }
       />
 
+      <Route
+        path="/photoshoot-planner"
+        element={
+          <ProtectedRoute>
+            <PreWeddingPlanner />
+          </ProtectedRoute>
+        }
+      />
+
       {/* Feature 7: AI Trip Intelligence Recommendations */}
       <Route
         path="/trip/:tripId/recommendations"
@@ -239,7 +255,15 @@ export const AppRoutes: React.FC = () => {
         path="/trip/:tripId/calendar"
         element={
           <ProtectedRoute>
-            <TripCalendarPage />
+            <TripCalendarPage mode="calendar" />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/trip/:tripId/timeline"
+        element={
+          <ProtectedRoute>
+            <TripCalendarPage mode="timeline" />
           </ProtectedRoute>
         }
       />
@@ -247,7 +271,15 @@ export const AppRoutes: React.FC = () => {
         path="/trips/:tripId/calendar"
         element={
           <ProtectedRoute>
-            <TripCalendarPage />
+            <TripCalendarPage mode="calendar" />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/trips/:tripId/timeline"
+        element={
+          <ProtectedRoute>
+            <TripCalendarPage mode="timeline" />
           </ProtectedRoute>
         }
       />
@@ -270,15 +302,68 @@ export const AppRoutes: React.FC = () => {
         }
       />
 
+      {/* Feature: Travel Guide & Editorial Dossier */}
+      <Route
+        path="/trip/:tripId/guide"
+        element={
+          <ProtectedRoute>
+            <TravelGuidePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/trips/:tripId/guide"
+        element={
+          <ProtectedRoute>
+            <TravelGuidePage />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Feature: Trip Health & Conflict Center */}
+      <Route
+        path="/trip/:tripId/health"
+        element={
+          <ProtectedRoute>
+            <TripHealthPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/trips/:tripId/health"
+        element={
+          <ProtectedRoute>
+            <TripHealthPage />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Feature: What-If Scenario Simulator */}
+      <Route
+        path="/trip/:tripId/what-if"
+        element={
+          <ProtectedRoute>
+            <WhatIfPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/trips/:tripId/what-if"
+        element={
+          <ProtectedRoute>
+            <WhatIfPage />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Feature: Public Shared Trip View (No login required) */}
+      <Route path="/shared-trip/:shareToken" element={<SharedTripPage />} />
+
       <Route
         path="/explore"
         element={
           <ProtectedRoute>
-            <ModulePlaceholderView
-              title="Explore Destinations"
-              subtitle="The Global Discovery Catalog with interactive destination filters, neighborhood guides, and seasonal insights will be built in the next feature phase."
-              badge="Feature Module: Explore & Discover"
-            />
+            <ExploreDestinationsPage />
           </ProtectedRoute>
         }
       />
@@ -301,15 +386,12 @@ export const AppRoutes: React.FC = () => {
         }
       />
 
+      {/* Feature: User Profile & Preferences */}
       <Route
         path="/profile"
         element={
           <ProtectedRoute>
-            <ModulePlaceholderView
-              title="Traveler Profile"
-              subtitle="Manage your personal traveler passport, travel style preferences, saved destinations, and connected accounts."
-              badge="User Profile & Settings"
-            />
+            <ProfilePage />
           </ProtectedRoute>
         }
       />
@@ -318,11 +400,7 @@ export const AppRoutes: React.FC = () => {
         path="/settings"
         element={
           <ProtectedRoute>
-            <ModulePlaceholderView
-              title="Application Settings"
-              subtitle="Preferences for default currency, notification alerts, language localization, and security."
-              badge="Settings & Preferences"
-            />
+            <ProfilePage />
           </ProtectedRoute>
         }
       />

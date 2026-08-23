@@ -96,6 +96,21 @@ export const TimelineDay: React.FC<TimelineDayProps> = ({
 
   // Day health badge styling
   const getHealthBadge = (status: string, score: number) => {
+    if (conflicts.some((conflict) => conflict.severity === 'error')) {
+      return {
+        bg: 'bg-[#FFEAE5]',
+        text: 'text-[#D9534F]',
+        border: 'border-[#FF6B4A]/30',
+      };
+    }
+    if (conflicts.length > 0) {
+      return {
+        bg: 'bg-[#FFF3D6]',
+        text: 'text-[#D97706]',
+        border: 'border-[#FDE68A]',
+      };
+    }
+
     switch (status) {
       case 'Excellent':
         return {
@@ -105,15 +120,15 @@ export const TimelineDay: React.FC<TimelineDayProps> = ({
         };
       case 'Busy':
         return {
-          bg: 'bg-[#FFF3D6]',
-          text: 'text-[#D97706]',
-          border: 'border-[#FDE68A]',
+          bg: 'bg-[#EBF5FB]',
+          text: 'text-[#2E86DE]',
+          border: 'border-[#BDC3C7]',
         };
       case 'Overloaded':
         return {
-          bg: 'bg-[#FFEAE5]',
-          text: 'text-[#D9534F]',
-          border: 'border-[#FF6B4A]/30',
+          bg: 'bg-[#EBF5FB]',
+          text: 'text-[#2E86DE]',
+          border: 'border-[#BDC3C7]',
         };
       case 'Balanced':
       default:
@@ -279,7 +294,7 @@ export const TimelineDay: React.FC<TimelineDayProps> = ({
                 onClick={() => onAddActivity(day.dayNumber)}
                 className="px-3 py-1 rounded-xl bg-white border border-[#20B8A6]/40 text-[#20B8A6] hover:bg-[#20B8A6] hover:text-white font-extrabold transition-all shadow-2xs cursor-pointer shrink-0"
               >
-                Explore Recommendations
+                Add Activities
               </button>
             </div>
           )}

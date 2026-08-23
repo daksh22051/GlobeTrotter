@@ -50,8 +50,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   };
 
   return (
-    <div className="w-full overflow-x-auto pb-6">
-      <div className="flex items-start gap-4 min-w-[700px]">
+    <div className="w-full pb-2">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 w-full">
         {days.map((day) => {
           const health = dayHealths[day.dayNumber];
           const isTarget = dragOverDay === day.dayNumber;
@@ -75,7 +75,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   onMoveActivity(activityId, day.dayNumber);
                 }
               }}
-              className={`flex-1 min-w-[240px] max-w-[320px] bg-white rounded-3xl p-4 border transition-all flex flex-col ${
+              className={`min-w-0 bg-white rounded-3xl p-4 border transition-all flex flex-col ${
                 isTarget
                   ? 'border-[#FF6B4A] bg-[#FFF2EE]/40 ring-2 ring-[#FF6B4A]/20 scale-[1.01]'
                   : 'border-[#EAE6DD] shadow-2xs'

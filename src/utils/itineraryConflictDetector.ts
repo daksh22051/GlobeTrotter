@@ -1,13 +1,12 @@
 /**
- * Itinerary Conflict Detector
+ * Comprehensive Itinerary Conflict & Issue Detector
  * 
- * Analyzes activity schedules to identify:
- * 1. Direct Time Overlaps (Activity A and Activity B happening at the same time)
- * 2. Tight Transitions / Insufficient Travel Time between locations
- * 3. Overloaded day schedules
+ * Deeply analyzes schedules, geographical transitions, day pacing,
+ * and meal coverage to provide structured, actionable issues.
  */
 
-import { ItineraryActivity, ItineraryConflict, ItineraryDay } from '../types/itinerary';
+import { ItineraryActivity, ItineraryDay, ItineraryConflict } from '../types/itinerary';
+import { TripHealthIssue } from '../types/intelligence';
 import { estimateTravelTimeMinutes, formatTravelTime } from './travelTimeEstimator';
 
 /**
@@ -55,7 +54,7 @@ export function calculateEndTime(startTime: string, durationMinutes: number): st
 }
 
 /**
- * Detects all schedule conflicts for a specific day
+ * Legacy compatibility: Detects basic conflicts for ItineraryDay
  */
 export function detectDayConflicts(day: ItineraryDay): ItineraryConflict[] {
   const conflicts: ItineraryConflict[] = [];
@@ -65,7 +64,6 @@ export function detectDayConflicts(day: ItineraryDay): ItineraryConflict[] {
 
   if (activities.length <= 1) return conflicts;
 
-  // Sort activities chronologically by start time for analysis
   const sorted = [...activities].sort(
     (a, b) => timeStringToMinutes(a.startTime) - timeStringToMinutes(b.startTime)
   );
@@ -78,7 +76,7 @@ export function detectDayConflicts(day: ItineraryDay): ItineraryConflict[] {
     const currentEndMins = currentStartMins + (current.durationMinutes || 60);
     const nextStartMins = timeStringToMinutes(next.startTime);
 
-    // 1. Direct Time Overlap Detection
+    // 1. Direct Overlap
     if (nextStartMins < currentEndMins) {
       const overlapMinutes = currentEndMins - nextStartMins;
       conflicts.push({
@@ -97,7 +95,7 @@ export function detectDayConflicts(day: ItineraryDay): ItineraryConflict[] {
       continue;
     }
 
-    // 2. Travel Time Insufficiency Detection (Tight Schedule)
+    // 2. Insufficient Travel Time
     const gapMinutes = nextStartMins - currentEndMins;
     const estTravel = estimateTravelTimeMinutes(
       current.location,
@@ -125,22 +123,22 @@ export function detectDayConflicts(day: ItineraryDay): ItineraryConflict[] {
     }
   }
 
-  // 3. Overloaded Day Detection (> 6 activities or > 11 total active hours)
+  // 3. Overloaded day check
   const totalDayMinutes = sorted.reduce(
     (acc, a) => acc + (a.durationMinutes || 60),
     0
   );
-  if (sorted.length >= 7 || totalDayMinutes > 660) {
+  if (sorted.length >= 6 || totalDayMinutes > 600) {
     conflicts.push({
       id: `conflict_overload_${day.dayNumber}`,
       type: 'overloaded_day',
       severity: 'warning',
       dayNumber: day.dayNumber,
       activityIds: sorted.map((a) => a.id),
-      message: `Day ${day.dayNumber} is very packed (${sorted.length} activities).`,
-      description: `Total planned time is ${Math.round(
+      message: `Day ${day.dayNumber} is overloaded (${sorted.length} activities).`,
+      description: `Total active time is ~${Math.round(
         totalDayMinutes / 60
-      )} hours. Consider moving 1 or 2 activities to lighter days.`,
+      )}h. Consider moving an activity to a lighter day.`,
     });
   }
 
@@ -148,14 +146,227 @@ export function detectDayConflicts(day: ItineraryDay): ItineraryConflict[] {
 }
 
 /**
- * Detects conflicts across the whole itinerary
+ * Legacy compatibility: Detects all basic conflicts across all days
  */
 export function detectAllConflicts(days: ItineraryDay[]): ItineraryConflict[] {
   return days.flatMap((day) => detectDayConflicts(day));
 }
 
 /**
- * Checks if a specific activity ID is involved in any conflict
+ * Deep, comprehensive issue detection for an Itinerary Day
+ */
+export function detectDeepDayIssues(day: ItineraryDay): TripHealthIssue[] {
+  const issues: TripHealthIssue[] = [];
+  const activities = (day.activities || []).filter((a) => a.status !== 'Unscheduled');
+
+  if (activities.length === 0) {
+    issues.push({
+      id: `issue_empty_${day.dayNumber}`,
+      type: 'empty_day',
+      severity: 'suggestion',
+      title: `Day ${day.dayNumber} has no planned activities`,
+      description: 'This day is currently completely open. Add a morning activity or cultural experience.',
+      dayNumber: day.dayNumber,
+      activityIds: [],
+      suggestedFix: 'Add recommendations to Day ' + day.dayNumber,
+      fixActionType: 'EXPLORE_FOOD',
+    });
+    return issues;
+  }
+
+  const sorted = [...activities].sort(
+    (a, b) => timeStringToMinutes(a.startTime || '09:00') - timeStringToMinutes(b.startTime || '09:00')
+  );
+
+  let hasLunch = false;
+  let hasDinner = false;
+  let totalActiveMinutes = 0;
+  let totalTravelMinutes = 0;
+
+  for (let i = 0; i < sorted.length; i++) {
+    const current = sorted[i];
+    const startMins = timeStringToMinutes(current.startTime || '09:00');
+    const durMins = current.durationMinutes || 90;
+    const endMins = startMins + durMins;
+    totalActiveMinutes += durMins;
+
+    // Check Meal coverage
+    if (
+      current.category === 'food' ||
+      current.mealType === 'lunch' ||
+      (startMins >= 11 * 60 + 30 && startMins <= 14 * 60 + 30) ||
+      (endMins >= 12 * 60 && endMins <= 14 * 60)
+    ) {
+      if (current.category === 'food' || current.mealType === 'lunch') {
+        hasLunch = true;
+      }
+    }
+
+    if (
+      current.category === 'food' ||
+      current.mealType === 'dinner' ||
+      startMins >= 19 * 60 ||
+      (endMins >= 19 * 60 + 30 && endMins <= 22 * 60)
+    ) {
+      if (current.category === 'food' || current.mealType === 'dinner') {
+        hasDinner = true;
+      }
+    }
+
+    // Pairwise checks with next activity
+    if (i < sorted.length - 1) {
+      const next = sorted[i + 1];
+      const nextStartMins = timeStringToMinutes(next.startTime || '10:00');
+
+      // A. Overlap (CRITICAL)
+      if (nextStartMins < endMins) {
+        const overlapMins = endMins - nextStartMins;
+        issues.push({
+          id: `issue_overlap_${day.dayNumber}_${current.id}_${next.id}`,
+          type: 'overlap',
+          severity: 'critical',
+          title: `Schedule Conflict: "${current.title}" & "${next.title}"`,
+          description: `"${current.title}" ends at ${formatTimeDisplay(minutesToTimeString(endMins))}, but "${next.title}" is set to start at ${formatTimeDisplay(next.startTime)} (${overlapMins} min overlap).`,
+          dayNumber: day.dayNumber,
+          activityIds: [current.id, next.id],
+          suggestedFix: `Shift "${next.title}" to ${formatTimeDisplay(minutesToTimeString(endMins + 30))} or move to another day.`,
+          fixActionType: 'FIX_OVERLAP',
+          metadata: {
+            overlapMinutes: overlapMins,
+            availableMinutes: 0,
+            requiredMinutes: overlapMins,
+          },
+        });
+      } else {
+        // B. Travel Buffer vs Estimated Travel (CRITICAL or WARNING)
+        const gapMins = nextStartMins - endMins;
+        const estTravel = estimateTravelTimeMinutes(
+          current.location,
+          next.location,
+          { lat: current.latitude, lng: current.longitude },
+          { lat: next.latitude, lng: next.longitude }
+        );
+        totalTravelMinutes += estTravel;
+
+        if (gapMins < estTravel) {
+          const isImpossible = gapMins < Math.max(10, estTravel * 0.4);
+          issues.push({
+            id: `issue_travel_${day.dayNumber}_${current.id}_${next.id}`,
+            type: isImpossible ? 'impossible_travel' : 'tight_travel',
+            severity: isImpossible ? 'critical' : 'warning',
+            title: isImpossible
+              ? `Impossible Travel Time between "${current.title}" and "${next.title}"`
+              : `Tight Schedule between "${current.title}" and "${next.title}"`,
+            description: `Estimated travel between ${current.location} and ${next.location} is ~${formatTravelTime(estTravel)}, but only ${gapMins} min is available.`,
+            dayNumber: day.dayNumber,
+            activityIds: [current.id, next.id],
+            suggestedFix: `Allow at least ${formatTravelTime(estTravel + 15)} buffer between these spots.`,
+            fixActionType: 'ADD_TRAVEL_TIME',
+            metadata: {
+              availableMinutes: gapMins,
+              requiredMinutes: estTravel,
+              fromLocation: current.location,
+              toLocation: next.location,
+            },
+          });
+        }
+      }
+    }
+  }
+
+  // C. Overloaded Day Detection (WARNING)
+  const totalDayMins = totalActiveMinutes + totalTravelMinutes;
+  const freeTimeMins = Math.max(0, 14 * 60 - totalDayMins); // Assuming 8:00 AM - 10:00 PM (14h span)
+
+  if (sorted.length >= 6 || totalDayMins > 600 || freeTimeMins < 45) {
+    const hours = Math.round((totalDayMins / 60) * 10) / 10;
+    issues.push({
+      id: `issue_overload_day_${day.dayNumber}`,
+      type: 'overloaded_day',
+      severity: 'warning',
+      title: `Day ${day.dayNumber} is overloaded (${sorted.length} activities, ~${hours}h active)`,
+      description: `You only have ~${Math.round(freeTimeMins)} min of rest or transition time. Moving one experience to a lighter day creates a more relaxing journey.`,
+      dayNumber: day.dayNumber,
+      activityIds: sorted.map((a) => a.id),
+      suggestedFix: `Move the last activity to a lighter day or spread out start times.`,
+      fixActionType: 'SPREAD_ACTIVITIES',
+    });
+  } else if (sorted.length <= 1 && day.activities.length > 0) {
+    // D. Underutilized Day Detection (SUGGESTION)
+    issues.push({
+      id: `issue_underutilized_day_${day.dayNumber}`,
+      type: 'underutilized_day',
+      severity: 'suggestion',
+      title: `Day ${day.dayNumber} has plenty of free time (${Math.round(freeTimeMins / 60)}h open)`,
+      description: `Only ${sorted.length} activity planned. Consider exploring top-rated spots or a dining reservation.`,
+      dayNumber: day.dayNumber,
+      activityIds: sorted.map((a) => a.id),
+      suggestedFix: 'Explore local recommendations to add to this day.',
+      fixActionType: 'EXPLORE_FOOD',
+    });
+  }
+
+  // E. Meal Gaps (SUGGESTIONS)
+  if (!hasLunch && sorted.length >= 2) {
+    // If span covers 12:00-14:00
+    const spansLunch = sorted.some((a) => {
+      const start = timeStringToMinutes(a.startTime || '09:00');
+      return start <= 13 * 60;
+    }) && sorted.some((a) => {
+      const start = timeStringToMinutes(a.startTime || '09:00');
+      const end = start + (a.durationMinutes || 90);
+      return end >= 13 * 60;
+    });
+
+    if (spansLunch || sorted.length >= 3) {
+      issues.push({
+        id: `issue_meal_lunch_${day.dayNumber}`,
+        type: 'meal_gap_lunch',
+        severity: 'suggestion',
+        title: `🍽 Lunch not planned for Day ${day.dayNumber}`,
+        description: 'You have activities spanning midday without a dedicated culinary stop or food tour.',
+        dayNumber: day.dayNumber,
+        activityIds: [],
+        suggestedFix: `Add a 1:00 PM local lunch spot near your afternoon activities.`,
+        fixActionType: 'ADD_MEAL',
+        metadata: { mealType: 'lunch' },
+      });
+    }
+  }
+
+  if (!hasDinner && sorted.length >= 2) {
+    const hasEveningAct = sorted.some((a) => {
+      const start = timeStringToMinutes(a.startTime || '09:00');
+      return start >= 17 * 60;
+    });
+    if (hasEveningAct) {
+      issues.push({
+        id: `issue_meal_dinner_${day.dayNumber}`,
+        type: 'meal_gap_dinner',
+        severity: 'suggestion',
+        title: `🍽 Dinner not planned for Day ${day.dayNumber}`,
+        description: 'No evening dining experience scheduled after your day exploring.',
+        dayNumber: day.dayNumber,
+        activityIds: [],
+        suggestedFix: `Add a 7:30 PM dinner reservation to wrap up your day.`,
+        fixActionType: 'ADD_MEAL',
+        metadata: { mealType: 'dinner' },
+      });
+    }
+  }
+
+  return issues;
+}
+
+/**
+ * Detects all issues across an entire itinerary
+ */
+export function detectAllItineraryIssues(days: ItineraryDay[]): TripHealthIssue[] {
+  return days.flatMap((day) => detectDeepDayIssues(day));
+}
+
+/**
+ * Checks if an activity has any active conflicts
  */
 export function getActivityConflict(
   activityId: string,

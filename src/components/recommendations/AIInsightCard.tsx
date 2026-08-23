@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles, Lightbulb, Compass, CheckCircle2 } from 'lucide-react';
+import { Lightbulb, CheckCircle2 } from 'lucide-react';
 import { AIInsightData } from '../../types/recommendation';
 
 interface AIInsightCardProps {
@@ -17,7 +17,6 @@ export const AIInsightCard: React.FC<AIInsightCardProps> = ({ insight }) => {
         {/* Left Narrative Column */}
         <div className="flex-1 space-y-3">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/15 text-[#FF8E72] text-xs font-bold backdrop-blur-md">
-            <Sparkles className="w-3.5 h-3.5" />
             <span>GlobeTrotter's AI Insight</span>
           </div>
 

@@ -2,14 +2,15 @@
  * Itinerary Management Service
  * 
  * Central persistence, state management, and CRUD operations for trip itineraries.
+ * Connected to PostgreSQL backend with optimistic local caching.
  */
 
 import { Itinerary, ItineraryDay, ItineraryActivity } from '../types/itinerary';
-import { Trip } from '../types/trip';
+import { Trip, TripItem } from '../types/trip';
 import { Recommendation } from '../types/recommendation';
 import { authService } from './authService';
-import { mockRecommendations } from '../data/mockRecommendations';
-import { calculateEndTime } from '../utils/itineraryConflictDetector';
+import { apiRequest } from './apiClient';
+import { buildTripRecommendations } from '../utils/recommendationMatcher';
 
 const STORAGE_KEY_PREFIX = 'globetrotter_itineraries';
 
@@ -19,9 +20,6 @@ const getStorageKey = (userId?: string): string => {
   return `${STORAGE_KEY_PREFIX}_${id}`;
 };
 
-/**
- * Formats a Date object into a readable display string, e.g. "Tuesday, Nov 13"
- */
 function formatDateDisplay(date: Date): string {
   try {
     return date.toLocaleDateString('en-US', {
@@ -34,16 +32,10 @@ function formatDateDisplay(date: Date): string {
   }
 }
 
-/**
- * Formats a Date object to "YYYY-MM-DD"
- */
 function formatDateISO(date: Date): string {
   return date.toISOString().split('T')[0];
 }
 
-/**
- * Generates default day structure for a trip
- */
 export function generateDefaultDays(trip: Trip): ItineraryDay[] {
   const duration = Math.max(1, Math.min(trip.durationDays || 3, 14));
   const days: ItineraryDay[] = [];
@@ -68,7 +60,15 @@ export function generateDefaultDays(trip: Trip): ItineraryDay[] {
     'Farewell Highlights & Souvenirs',
   ];
 
+  const orderedCities = [...(trip.cities || [])]
+    .filter((city) => city.cityName.trim())
+    .sort((a, b) => a.orderIndex - b.orderIndex);
+  let cityIndex = 0;
+  let cityDayCount = 0;
+
   for (let i = 0; i < duration; i++) {
+    const city = orderedCities.length > 0 ? orderedCities[cityIndex] : undefined;
+    const cityStay = city?.stayDurationDays || 1;
     const dayDate = new Date(baseDate);
     dayDate.setDate(baseDate.getDate() + i);
 
@@ -80,18 +80,26 @@ export function generateDefaultDays(trip: Trip): ItineraryDay[] {
       dateDisplay: formatDateDisplay(dayDate),
       title: sampleThemes[themeIndex],
       theme: sampleThemes[themeIndex],
+      cityName: city?.cityName || trip.destination,
+      cityCountry: city?.country || trip.country,
+      stopIndex: city ? cityIndex : undefined,
       activities: [],
     });
+
+    if (city) {
+      cityDayCount += 1;
+      if (cityDayCount >= cityStay && cityIndex < orderedCities.length - 1) {
+        cityIndex += 1;
+        cityDayCount = 0;
+      }
+    }
   }
 
   return days;
 }
 
-/**
- * Converts a recommendation or trip item into a full ItineraryActivity
- */
 export function recommendationToActivity(
-  rec: Recommendation | { id: string; name: string; category?: string; type?: string; location?: string; image?: string; estimatedCost?: number; duration?: string; currency?: string },
+  rec: Recommendation | { id: string; name?: string; title?: string; category?: string; type?: string; location?: string; image?: string; estimatedCost?: number; duration?: string; currency?: string; latitude?: number; longitude?: number },
   dayNumber?: number,
   startTime: string = '10:00'
 ): ItineraryActivity {
@@ -111,6 +119,8 @@ export function recommendationToActivity(
     title: name,
     category: category as any,
     location: rec.location || 'Central Area',
+    latitude: typeof (rec as any).latitude === 'number' && !isNaN((rec as any).latitude) && (rec as any).latitude !== 0 ? (rec as any).latitude : undefined,
+    longitude: typeof (rec as any).longitude === 'number' && !isNaN((rec as any).longitude) && (rec as any).longitude !== 0 ? (rec as any).longitude : undefined,
     startTime,
     duration,
     durationMinutes: durationMins,
@@ -126,8 +136,78 @@ export function recommendationToActivity(
 
 export const itineraryService = {
   /**
-   * Loads all stored itineraries from local storage
+   * Fetch itinerary asynchronously from PostgreSQL
    */
+  async fetchItinerary(tripId: string): Promise<Itinerary | null> {
+    try {
+      const serverItin = await apiRequest<any>(`/trips/${tripId}/itinerary`);
+      if (serverItin) {
+        const days: ItineraryDay[] = (serverItin.days || []).map((d: any) => ({
+          id: d.id,
+          dayNumber: d.dayNumber,
+          date: d.date,
+          dateDisplay: formatDateDisplay(new Date(d.date)),
+          title: d.title,
+          theme: d.theme,
+          activities: (d.activities || []).map((a: any) => ({
+            id: a.id,
+            recommendationId: a.id,
+            title: a.title,
+            category: (a.category?.toLowerCase() || 'place') as any,
+            location: a.location || '',
+            latitude: typeof a.latitude === 'number' && !isNaN(a.latitude) ? a.latitude : undefined,
+            longitude: typeof a.longitude === 'number' && !isNaN(a.longitude) ? a.longitude : undefined,
+            startTime: a.startTime || '10:00',
+            duration: `${a.durationMinutes || 60} mins`,
+            durationMinutes: a.durationMinutes || 60,
+            estimatedCost: Number(a.cost) || 0,
+            currency: a.currency || 'INR',
+            notes: a.notes || '',
+            status: 'Scheduled' as const,
+            dayNumber: d.dayNumber,
+            image: 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=800&q=80',
+          })),
+        }));
+
+        const mapped: Itinerary = {
+          id: serverItin.id,
+          tripId: serverItin.tripId,
+          title: serverItin.title,
+          destination: serverItin.destination,
+          country: serverItin.country,
+          days,
+          unscheduledActivities: (serverItin.unscheduledActivities || []).map((a: any) => ({
+            id: a.id,
+            recommendationId: a.id,
+            title: a.title,
+            category: (a.category?.toLowerCase() || 'place') as any,
+            location: a.location || '',
+            latitude: typeof a.latitude === 'number' && !isNaN(a.latitude) ? a.latitude : undefined,
+            longitude: typeof a.longitude === 'number' && !isNaN(a.longitude) ? a.longitude : undefined,
+            startTime: a.startTime || '',
+            duration: `${a.durationMinutes || 60} mins`,
+            durationMinutes: a.durationMinutes || 60,
+            estimatedCost: Number(a.cost) || 0,
+            currency: a.currency || 'INR',
+            notes: a.notes || '',
+            status: 'Unscheduled' as const,
+            image: 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=800&q=80',
+          })),
+          createdAt: serverItin.createdAt || new Date().toISOString(),
+          updatedAt: serverItin.updatedAt || new Date().toISOString(),
+        };
+
+        const all = this.getAllItineraries();
+        all[tripId] = mapped;
+        localStorage.setItem(getStorageKey(), JSON.stringify(all));
+        return mapped;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
   getAllItineraries(userId?: string): Record<string, Itinerary> {
     try {
       const key = getStorageKey(userId);
@@ -139,26 +219,137 @@ export const itineraryService = {
     }
   },
 
-  /**
-   * Gets or initializes an itinerary for a trip
-   */
+  seedTripItems(itinerary: Itinerary, trip: Trip): Itinerary {
+    const hasRecommendationId = (id: string | undefined): id is string =>
+      typeof id === 'string' && id.length > 0;
+    const existingRecommendationIds = new Set<string>([
+      ...itinerary.days.flatMap((day) =>
+        (day.activities || [])
+          .map((activity) => activity.recommendationId)
+          .filter(hasRecommendationId)
+      ),
+      ...(itinerary.unscheduledActivities || [])
+        .map((activity) => activity.recommendationId)
+        .filter(hasRecommendationId),
+    ]);
+    const missingItems = (trip.items || []).filter((item) => !existingRecommendationIds.has(item.recommendationId));
+
+    if (missingItems.length === 0) return itinerary;
+
+    const days: ItineraryDay[] = (itinerary.days || []).map((day) => ({
+      ...day,
+      activities: [...(day.activities || [])],
+    }));
+    const unscheduledActivities: ItineraryActivity[] = [
+      ...(itinerary.unscheduledActivities || []),
+    ];
+    const timeSlots = ['09:30', '13:30', '17:00'];
+
+    missingItems.forEach((item, index) => {
+      const activity = recommendationToActivity(item as any);
+      const day = days[index % (days.length || 1)];
+
+      if (!day) {
+        unscheduledActivities.push(activity);
+        return;
+      }
+
+      days[index % days.length].activities.push({
+        ...activity,
+        startTime: timeSlots[index % timeSlots.length],
+        status: 'Scheduled',
+        dayNumber: day.dayNumber,
+      });
+    });
+
+    return {
+      ...itinerary,
+      days,
+      unscheduledActivities,
+      updatedAt: new Date().toISOString(),
+    };
+  },
+
   getItinerary(tripId: string, trip?: Trip): Itinerary {
     const all = this.getAllItineraries(trip?.userId);
     if (all[tripId]) {
-      return all[tripId];
+      const existing = trip ? this.seedTripItems(all[tripId], trip) : all[tripId];
+      const totalActivities = existing.days.reduce((acc, d) => acc + d.activities.length, 0);
+      if (totalActivities > 0) {
+        const emptyDays = existing.days.filter((day) => day.activities.length === 0);
+        if (trip && emptyDays.length > 0) {
+          const recommendations = buildTripRecommendations(trip).allRecommendations;
+          const usedIds = new Set<string>(
+            existing.days
+              .flatMap((day) => (day.activities || []).map((activity) => activity.recommendationId))
+              .filter((id): id is string => typeof id === 'string' && id.length > 0)
+          );
+          const available = recommendations.filter((recommendation) => !usedIds.has(recommendation.id));
+          const repairedDays = existing.days.map((day) => {
+            if (day.activities.length > 0) return day;
+            const recommendation = available.shift();
+            if (!recommendation) return day;
+            return {
+              ...day,
+              activities: [recommendationToActivity(recommendation, day.dayNumber, '10:00')],
+            };
+          });
+          if (repairedDays.some((day, index) => day.activities.length !== existing.days[index].activities.length)) {
+            const repaired = { ...existing, days: repairedDays, updatedAt: new Date().toISOString() };
+            this.saveItinerary(repaired, trip.userId);
+            return repaired;
+          }
+        }
+        if (existing !== all[tripId]) this.saveItinerary(existing, trip?.userId);
+        return existing;
+      }
+
+      if (existing !== all[tripId]) {
+        this.saveItinerary(existing, trip?.userId);
+        return existing;
+      }
     }
 
-    // If no existing itinerary, build an initial journey using trip's saved items or recommendations
     const days = trip ? generateDefaultDays(trip) : [];
     const unscheduledActivities: ItineraryActivity[] = [];
 
     if (trip) {
-      // 1. If trip has trip.items, populate them
+      if (trip.arrivalLocation?.trim() && days.length > 0) {
+        const arrivalActivity = recommendationToActivity(
+          {
+            id: `arrival_${trip.id}`,
+            name: `Arrival at ${trip.arrivalLocation.trim()}`,
+            category: 'place',
+            location: trip.arrivalLocation.trim(),
+            duration: '30 mins',
+            estimatedCost: 0,
+            currency: trip.currency,
+            latitude: undefined,
+            longitude: undefined,
+          },
+          days[0].dayNumber,
+          trip.arrivalTime || '11:00'
+        );
+        days[0].activities.push({ ...arrivalActivity, status: 'Scheduled' });
+      }
+
       if (trip.items && trip.items.length > 0) {
         let currentDayIdx = 0;
-        let timeOffset = 9 * 60 + 30; // 09:30 AM
+        let timeOffset = trip.arrivalTime
+          ? Number(trip.arrivalTime.split(':')[0]) * 60 + Number(trip.arrivalTime.split(':')[1]) + 90
+          : 9 * 60 + 30;
 
-        trip.items.forEach((item, index) => {
+        const orderedItems = [...trip.items].sort((first, second) => {
+          const categoryOrder: Record<TripItem['type'], number> = {
+            hotel: 0,
+            food: 1,
+            place: 2,
+            experience: 3,
+          };
+          return categoryOrder[first.type] - categoryOrder[second.type];
+        });
+
+        orderedItems.forEach((item) => {
           const act = recommendationToActivity(item as any);
           if (days.length > 0) {
             const targetDay = days[currentDayIdx];
@@ -183,18 +374,15 @@ export const itineraryService = {
           }
         });
       } else {
-        // 2. Starter suggestions from mock recommendations matching destination
-        const destLower = trip.destination.toLowerCase();
-        const matches = mockRecommendations.filter(
-          (m) => m.destination.toLowerCase().includes(destLower) || m.country.toLowerCase().includes(destLower)
-        );
-        const starters = matches.length > 0 ? matches.slice(0, 6) : mockRecommendations.slice(0, 6);
+        // Build destination-specific tailored recommendations
+        const recs = buildTripRecommendations(trip);
+        const starters = [...recs.hotels, ...recs.food, ...recs.places, ...recs.attractions];
 
         let dayIdx = 0;
-        const timeSlots = ['09:30', '13:00', '16:30'];
+        const timeSlots = ['09:30', '13:30', '17:00'];
 
-        starters.forEach((rec, idx) => {
-          const day = days[dayIdx];
+        starters.slice(0, Math.max(6, days.length * 3)).forEach((rec, idx) => {
+          const day = days[dayIdx % (days.length || 1)];
           const slot = timeSlots[idx % timeSlots.length];
           if (day) {
             day.activities.push(
@@ -204,9 +392,7 @@ export const itineraryService = {
             unscheduledActivities.push(recommendationToActivity(rec));
           }
 
-          if ((idx + 1) % 2 === 0) {
-            dayIdx = (dayIdx + 1) % (days.length || 1);
-          }
+          dayIdx += 1;
         });
       }
     }
@@ -228,9 +414,6 @@ export const itineraryService = {
     return newItinerary;
   },
 
-  /**
-   * Persists an itinerary
-   */
   saveItinerary(itinerary: Itinerary, userId?: string): boolean {
     try {
       const all = this.getAllItineraries(userId || itinerary.userId);
@@ -246,16 +429,14 @@ export const itineraryService = {
     }
   },
 
-  /**
-   * Adds an activity to a specific day or unscheduled area
-   */
   addActivity(
     itinerary: Itinerary,
     activityData: Partial<ItineraryActivity>,
     targetDayNumber?: number
   ): Itinerary {
+    const actId = `act_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const newAct: ItineraryActivity = {
-      id: `act_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      id: actId,
       title: activityData.title || 'New Activity',
       category: activityData.category || 'place',
       location: activityData.location || itinerary.destination,
@@ -276,10 +457,12 @@ export const itineraryService = {
 
     let updatedDays = [...(itinerary.days || [])];
     let updatedUnscheduled = [...(itinerary.unscheduledActivities || [])];
+    let targetDayDbId: string | undefined;
 
     if (targetDayNumber) {
       updatedDays = updatedDays.map((day) => {
         if (day.dayNumber === targetDayNumber) {
+          targetDayDbId = day.id;
           return {
             ...day,
             activities: [...day.activities, newAct],
@@ -299,31 +482,42 @@ export const itineraryService = {
     };
 
     this.saveItinerary(updatedItinerary);
+
+    // Sync to PostgreSQL
+    if (authService.isAuthenticated() && targetDayDbId && !targetDayDbId.startsWith('day_temp')) {
+      apiRequest(`/itinerary-days/${targetDayDbId}/activities`, {
+        method: 'POST',
+        body: JSON.stringify({
+          title: newAct.title,
+          category: newAct.category,
+          startTime: newAct.startTime,
+          durationMinutes: newAct.durationMinutes,
+          cost: newAct.estimatedCost,
+          currency: newAct.currency,
+          location: newAct.location,
+          notes: newAct.notes,
+        }),
+      }).catch((err) => console.log('Activity insert sync:', err.message));
+    }
+
     return updatedItinerary;
   },
 
-  /**
-   * Updates an existing activity by ID anywhere in the itinerary
-   */
   updateActivity(
     itinerary: Itinerary,
     activityId: string,
     updates: Partial<ItineraryActivity>
   ): Itinerary {
-    let activityFound = false;
-
     const updatedDays = (itinerary.days || []).map((day) => {
       const idx = day.activities.findIndex((a) => a.id === activityId);
       if (idx !== -1) {
-        activityFound = true;
         const current = day.activities[idx];
         const merged: ItineraryActivity = {
           ...current,
           ...updates,
-          id: current.id, // preserve ID
+          id: current.id,
         };
 
-        // If dayNumber was changed, remove from here (it will be placed in target day)
         if (updates.dayNumber && updates.dayNumber !== day.dayNumber) {
           return {
             ...day,
@@ -343,7 +537,6 @@ export const itineraryService = {
 
     let updatedUnscheduled = (itinerary.unscheduledActivities || []).map((act) => {
       if (act.id === activityId) {
-        activityFound = true;
         return {
           ...act,
           ...updates,
@@ -352,12 +545,10 @@ export const itineraryService = {
       return act;
     });
 
-    // If day was updated and target is different, place in new day
     if (updates.dayNumber) {
       const targetDay = updatedDays.find((d) => d.dayNumber === updates.dayNumber);
       const isAlreadyInTarget = targetDay?.activities.some((a) => a.id === activityId);
       if (targetDay && !isAlreadyInTarget) {
-        // Find existing activity from old place
         let actToMove: ItineraryActivity | undefined;
         itinerary.days.forEach((d) => {
           const found = d.activities.find((a) => a.id === activityId);
@@ -387,12 +578,45 @@ export const itineraryService = {
     };
 
     this.saveItinerary(updated);
+
+    // Find dayId if activity is in a day
+    let targetDayId: string | undefined;
+    updatedDays.forEach((d) => {
+      if (d.activities.some((a) => a.id === activityId)) {
+        targetDayId = d.id;
+      }
+    });
+
+    let currentActivity: ItineraryActivity | undefined;
+    itinerary.days.forEach((d) => {
+      const found = d.activities.find((a) => a.id === activityId);
+      if (found) currentActivity = found;
+    });
+    if (!currentActivity) {
+      currentActivity = itinerary.unscheduledActivities?.find((a) => a.id === activityId);
+    }
+
+    // Sync to PostgreSQL
+    if (authService.isAuthenticated() && !activityId.startsWith('act_temp')) {
+      apiRequest(`/activities/${activityId}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          title: updates.title !== undefined ? updates.title : currentActivity?.title,
+          category: updates.category !== undefined ? updates.category : currentActivity?.category,
+          startTime: updates.startTime !== undefined ? updates.startTime : currentActivity?.startTime,
+          durationMinutes: updates.durationMinutes !== undefined ? updates.durationMinutes : currentActivity?.durationMinutes,
+          cost: updates.estimatedCost !== undefined ? updates.estimatedCost : currentActivity?.estimatedCost,
+          location: updates.location !== undefined ? updates.location : currentActivity?.location,
+          notes: updates.notes !== undefined ? updates.notes : currentActivity?.notes,
+          dayId: targetDayId,
+          itineraryId: itinerary.id,
+        }),
+      }).catch((err) => console.log('Activity update sync:', err.message));
+    }
+
     return updated;
   },
 
-  /**
-   * Removes an activity from the itinerary
-   */
   removeActivity(itinerary: Itinerary, activityId: string): Itinerary {
     const updatedDays = (itinerary.days || []).map((day) => ({
       ...day,
@@ -411,12 +635,17 @@ export const itineraryService = {
     };
 
     this.saveItinerary(updated);
+
+    // Sync to PostgreSQL
+    if (authService.isAuthenticated() && !activityId.startsWith('act_temp')) {
+      apiRequest(`/activities/${activityId}`, {
+        method: 'DELETE',
+      }).catch((err) => console.log('Activity delete sync:', err.message));
+    }
+
     return updated;
   },
 
-  /**
-   * Duplicates an activity
-   */
   duplicateActivity(itinerary: Itinerary, activityId: string): Itinerary {
     let foundAct: ItineraryActivity | null = null;
     let foundDayNumber: number | undefined;
@@ -446,9 +675,6 @@ export const itineraryService = {
     return this.addActivity(itinerary, duplicated, foundDayNumber);
   },
 
-  /**
-   * Moves an activity to a target day, or unscheduled, and adjusts position/time
-   */
   moveActivity(
     itinerary: Itinerary,
     activityId: string,
@@ -458,7 +684,6 @@ export const itineraryService = {
   ): Itinerary {
     let sourceActivity: ItineraryActivity | null = null;
 
-    // 1. Extract activity from current location
     const cleanDays = (itinerary.days || []).map((day) => {
       const found = day.activities.find((a) => a.id === activityId);
       if (found) {
@@ -487,7 +712,6 @@ export const itineraryService = {
       startTime: newStartTime || (targetDayNumber ? (sourceActivity as ItineraryActivity).startTime || '10:00' : ''),
     };
 
-    // 2. Place into target destination
     if (targetDayNumber) {
       const targetDay = cleanDays.find((d) => d.dayNumber === targetDayNumber);
       if (targetDay) {
@@ -512,9 +736,6 @@ export const itineraryService = {
     return updated;
   },
 
-  /**
-   * Reorders activities within the same day
-   */
   reorderActivities(
     itinerary: Itinerary,
     dayNumber: number,
@@ -546,9 +767,6 @@ export const itineraryService = {
     return updated;
   },
 
-  /**
-   * Deletes an itinerary for a trip
-   */
   deleteItinerary(tripId: string, userId?: string): boolean {
     try {
       const all = this.getAllItineraries(userId);
@@ -564,9 +782,6 @@ export const itineraryService = {
     }
   },
 
-  /**
-   * Duplicates an existing itinerary for a new trip
-   */
   duplicateItinerary(sourceTripId: string, targetTripId: string, newTrip: Trip, userId?: string): Itinerary | null {
     const existing = this.getItinerary(sourceTripId);
     if (!existing) return null;
@@ -588,7 +803,9 @@ export const itineraryService = {
     const clonedItinerary: Itinerary = {
       id: `itin_${targetTripId}`,
       tripId: targetTripId,
+      title: newTrip.name ? `${newTrip.name} Itinerary` : (existing.title || `Trip to ${newTrip.destination}`),
       destination: newTrip.destination,
+      country: newTrip.country || existing.country || '',
       days: clonedDays,
       unscheduledActivities: clonedUnscheduled,
       createdAt: new Date().toISOString(),
@@ -599,10 +816,64 @@ export const itineraryService = {
     return clonedItinerary;
   },
 
-  /**
-   * Restores an itinerary (for Undo deletion)
-   */
   restoreItinerary(itinerary: Itinerary, userId?: string): boolean {
     return this.saveItinerary(itinerary, userId);
+  },
+
+  /**
+   * Transaction-safe background batch synchronization to PostgreSQL
+   */
+  async batchSyncItinerary(itinerary: Itinerary): Promise<boolean> {
+    if (!itinerary || !itinerary.id) return false;
+    try {
+      const activityMoves: any[] = [];
+      (itinerary.days || []).forEach((d) => {
+        (d.activities || []).forEach((a, idx) => {
+          activityMoves.push({
+            id: a.id,
+            dayId: d.id,
+            orderIndex: idx,
+            startTime: a.startTime,
+            durationMinutes: a.durationMinutes,
+            cost: a.estimatedCost,
+            title: a.title,
+            category: a.category,
+            location: a.location,
+            notes: a.notes,
+          });
+        });
+      });
+      (itinerary.unscheduledActivities || []).forEach((a, idx) => {
+        activityMoves.push({
+          id: a.id,
+          dayId: null,
+          orderIndex: idx,
+          startTime: a.startTime,
+          durationMinutes: a.durationMinutes,
+          cost: a.estimatedCost,
+          title: a.title,
+          category: a.category,
+          location: a.location,
+          notes: a.notes,
+        });
+      });
+
+      const dayUpdates = (itinerary.days || []).map((d) => ({
+        id: d.id,
+        dayNumber: d.dayNumber,
+        date: d.date,
+        title: d.title,
+        theme: d.theme,
+      }));
+
+      await apiRequest(`/itinerary/${itinerary.id}/batch-update`, {
+        method: 'POST',
+        body: JSON.stringify({ activityMoves, dayUpdates }),
+      });
+      return true;
+    } catch (err) {
+      console.warn('Background batch sync:', err);
+      return false;
+    }
   },
 };

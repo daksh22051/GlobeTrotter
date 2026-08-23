@@ -21,6 +21,8 @@ import {
   RouteSegment,
   UserCurrentLocation,
   TripMapStats,
+  MapCategoryFilter,
+  RouteDisplayMode,
 } from '../types/map';
 import {
   extractMapMarkers,
@@ -42,6 +44,7 @@ import { RouteOptimizationModal } from '../components/trip-map/RouteOptimization
 import { EditActivityModal } from '../components/trip-map/EditActivityModal';
 import { MoveActivityModal } from '../components/trip-map/MoveActivityModal';
 import { DeleteConfirmationModal } from '../components/trip-map/DeleteConfirmationModal';
+import { MobileBottomNav } from '../components/dashboard/MobileBottomNav';
 
 export const TripMapPage: React.FC = () => {
   const { tripId } = useParams<{ tripId: string }>();
@@ -57,8 +60,10 @@ export const TripMapPage: React.FC = () => {
   const [history, setHistory] = useState<Itinerary[]>([]);
   const [undoToast, setUndoToast] = useState<{ message: string; prevItinerary: Itinerary } | null>(null);
 
-  // Map Filter & View State
-  const [selectedDayNumber, setSelectedDayNumber] = useState<number | 'all'>('all');
+  // Map Filter & View State (Default to Day 1 and clean active day route)
+  const [selectedDayNumber, setSelectedDayNumber] = useState<number | 'all'>(1);
+  const [categoryFilter, setCategoryFilter] = useState<MapCategoryFilter>('all');
+  const [routeDisplayMode, setRouteDisplayMode] = useState<RouteDisplayMode>('active_day');
   const [mobileTab, setMobileTab] = useState<'map' | 'places'>('map');
 
   // Interaction State
@@ -99,6 +104,9 @@ export const TripMapPage: React.FC = () => {
       setTrip(loadedTrip);
       const loadedItinerary = itineraryService.getItinerary(tripId, loadedTrip);
       setItinerary(loadedItinerary);
+      if (loadedItinerary && loadedItinerary.days.length > 0) {
+        setSelectedDayNumber(loadedItinerary.days[0].dayNumber);
+      }
     }
     setIsLoading(false);
   }, [tripId]);
@@ -169,8 +177,21 @@ export const TripMapPage: React.FC = () => {
         healthMessage: 'Start adding places to build your journey.',
       };
     }
-    return calculateTripMapStats(itinerary);
-  }, [itinerary]);
+    if (selectedDayNumber === 'all') return calculateTripMapStats(itinerary);
+
+    return calculateTripMapStats({
+      ...itinerary,
+      days: itinerary.days.filter((day) => day.dayNumber === selectedDayNumber),
+    });
+  }, [itinerary, selectedDayNumber]);
+
+  const activeDayActivitiesCount = useMemo(() => {
+    if (!itinerary) return 0;
+    if (selectedDayNumber === 'all') {
+      return itinerary.days.reduce((sum, day) => sum + day.activities.length, 0);
+    }
+    return itinerary.days.find((day) => day.dayNumber === selectedDayNumber)?.activities.length || 0;
+  }, [itinerary, selectedDayNumber]);
 
   const totalActivitiesCount = useMemo(() => {
     if (!itinerary) return 0;
@@ -196,7 +217,7 @@ export const TripMapPage: React.FC = () => {
         setIsLocating(false);
         showToast('Located your position on the map 📍');
       },
-      (error) => {
+      () => {
         setIsLocating(false);
         showToast('Location access was denied or timed out.');
       },
@@ -324,7 +345,7 @@ export const TripMapPage: React.FC = () => {
         <button
           type="button"
           onClick={() => navigate('/dashboard')}
-          className="px-6 py-2.5 rounded-full bg-[#17201D] text-white text-xs font-bold shadow-md hover:bg-[#FF6B4A] transition-colors"
+          className="px-6 py-2.5 rounded-full bg-[#17201D] text-white text-xs font-bold shadow-md hover:bg-[#FF6B4A] transition-colors cursor-pointer"
         >
           Return to Dashboard
         </button>
@@ -335,7 +356,7 @@ export const TripMapPage: React.FC = () => {
   // Empty Itinerary State
   if (totalActivitiesCount === 0) {
     return (
-      <div className="min-h-screen bg-[#FFFDF8] flex flex-col">
+      <div className="min-h-screen bg-[#FFFDF8] flex flex-col pb-20 md:pb-8">
         <MapHeader
           trip={trip}
           onOpenOptimize={() => showToast('Add places to your trip before optimizing routes.')}
@@ -357,21 +378,20 @@ export const TripMapPage: React.FC = () => {
                 setAddPlaceDefaultDay(1);
                 setIsAddPlaceOpen(true);
               }}
-              className="px-5 py-2.5 rounded-full bg-[#FF6B4A] text-white text-xs font-black shadow-md hover:bg-[#E55837] transition-all"
+              className="px-5 py-2.5 rounded-full bg-[#FF6B4A] text-white text-xs font-black shadow-md hover:bg-[#E55837] transition-all cursor-pointer"
             >
               + Add First Place
             </button>
             <button
               type="button"
               onClick={() => navigate(`/trip/${trip.id}/itinerary`)}
-              className="px-5 py-2.5 rounded-full bg-white border border-[#EAE6DD] text-[#17201D] text-xs font-bold shadow-2xs hover:bg-[#F9F7F1] transition-all"
+              className="px-5 py-2.5 rounded-full bg-white border border-[#EAE6DD] text-[#17201D] text-xs font-bold shadow-2xs hover:bg-[#F9F7F1] transition-all cursor-pointer"
             >
               Build Itinerary →
             </button>
           </div>
         </div>
 
-        {/* Add Place Drawer in Empty State */}
         <AddPlaceDrawer
           isOpen={isAddPlaceOpen}
           onClose={() => setIsAddPlaceOpen(false)}
@@ -380,12 +400,13 @@ export const TripMapPage: React.FC = () => {
           defaultDayNumber={1}
           onAddActivity={handleAddActivity}
         />
+        <MobileBottomNav />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#FFFDF8]">
+    <div className="min-h-screen flex flex-col bg-[#FFFDF8] pb-16 md:pb-0">
       {/* 1. Top Page Header */}
       <MapHeader
         trip={trip}
@@ -393,7 +414,7 @@ export const TripMapPage: React.FC = () => {
         isSaving={isSaving}
       />
 
-      {/* 2. Day Filter Bar */}
+      {/* 2. Day Filter Bar with Quick Layer & Route Mode Controls */}
       <DayFilter
         days={itinerary.days}
         selectedDayNumber={selectedDayNumber}
@@ -402,6 +423,8 @@ export const TripMapPage: React.FC = () => {
           setActiveMarkerId(null);
         }}
         totalActivitiesCount={totalActivitiesCount}
+        routeDisplayMode={routeDisplayMode}
+        onSelectRouteDisplayMode={setRouteDisplayMode}
       />
 
       {/* 3. Mobile View Mode Toggle (Map | Places) */}
@@ -477,11 +500,14 @@ export const TripMapPage: React.FC = () => {
         >
           {/* Leaflet Interactive Map */}
           <TripMap
+            destination={itinerary?.destination || trip?.destination || 'Manali'}
             markers={currentMarkers}
             segments={currentSegments}
             selectedDayNumber={selectedDayNumber}
             activeMarkerId={activeMarkerId}
             hoveredMarkerId={hoveredMarkerId}
+            categoryFilter={categoryFilter}
+            routeDisplayMode={routeDisplayMode}
             userLocation={userLocation}
             onMarkerClick={(marker) => {
               setActiveMarkerId(marker.id);
@@ -493,8 +519,28 @@ export const TripMapPage: React.FC = () => {
             }}
           />
 
+          {selectedDayNumber !== 'all' && activeDayActivitiesCount === 0 && (
+            <div className="absolute inset-0 z-15 flex items-center justify-center p-6 pointer-events-none">
+              <div className="pointer-events-auto max-w-sm rounded-2xl border border-[#EAE6DD] bg-white/95 p-5 text-center shadow-xl backdrop-blur-md">
+                <MapIcon className="mx-auto mb-2 h-8 w-8 text-[#FF6B4A]" />
+                <h3 className="text-sm font-black text-[#17201D]">No activities planned for this day yet.</h3>
+                <p className="mt-1 text-xs text-[#68736F]">Click below to add a place to your local route.</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAddPlaceDefaultDay(selectedDayNumber);
+                    setIsAddPlaceOpen(true);
+                  }}
+                  className="mt-3 rounded-full bg-[#FF6B4A] px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-[#E55837]"
+                >
+                  Add a place
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Floating Trip Summary Card (Top Left of Map) */}
-          <div className="absolute top-4 left-4 z-20 max-w-xs sm:max-w-sm">
+          <div className="absolute top-4 left-4 z-20 max-w-xs sm:max-w-sm pointer-events-auto">
             <RouteSummaryCard
               stats={tripStats}
               selectedDayNumber={selectedDayNumber}
@@ -514,7 +560,6 @@ export const TripMapPage: React.FC = () => {
               onZoomIn={() => {
                 const mapEl = document.querySelector('.leaflet-container');
                 if (mapEl) {
-                  // Standard zoom in trigger
                   const zoomBtn = mapEl.querySelector('.leaflet-control-zoom-in') as HTMLAnchorElement;
                   if (zoomBtn) zoomBtn.click();
                 }
@@ -527,15 +572,22 @@ export const TripMapPage: React.FC = () => {
                 }
               }}
               onRecenter={() => {
-                // Re-trigger bounds fit
-                setSelectedDayNumber((prev) => (prev === 'all' ? 1 : 'all'));
-                setTimeout(() => setSelectedDayNumber(selectedDayNumber), 50);
-                showToast('Recenetred map view 📍');
+                const currentDay = selectedDayNumber;
+                setSelectedDayNumber(currentDay === 'all' ? 1 : 'all');
+                setTimeout(() => setSelectedDayNumber(currentDay), 50);
+                showToast('Recentered map view 📍');
               }}
               onLocateMe={handleLocateMe}
               isLocating={isLocating}
               onToggleLegend={() => setIsLegendOpen(!isLegendOpen)}
               isLegendOpen={isLegendOpen}
+              categoryFilter={categoryFilter}
+              onCategoryFilterChange={(filter) => {
+                setCategoryFilter(filter);
+                setActiveMarkerId(null);
+              }}
+              routeDisplayMode={routeDisplayMode}
+              onRouteChangeMode={setRouteDisplayMode}
             />
           </div>
         </div>
@@ -643,6 +695,9 @@ export const TripMapPage: React.FC = () => {
           <span>{toastMessage}</span>
         </div>
       )}
+
+      {/* 13. Mobile Bottom Navigation */}
+      <MobileBottomNav />
     </div>
   );
 };

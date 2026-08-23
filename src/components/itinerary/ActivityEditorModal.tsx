@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   X,
   Clock,
@@ -33,40 +33,58 @@ export const ActivityEditorModal: React.FC<ActivityEditorModalProps> = ({
   onClose,
   onSave,
 }) => {
-  if (!isOpen || !activity) return null;
-
-  const [title, setTitle] = useState(activity.title || '');
+  const [title, setTitle] = useState(activity?.title || '');
   const [category, setCategory] = useState<RecommendationCategory>(
-    activity.category || 'place'
+    activity?.category || 'place'
   );
-  const [location, setLocation] = useState(activity.location || '');
+  const [location, setLocation] = useState(activity?.location || '');
   const [dayNumber, setDayNumber] = useState<number | ''>(
-    activity.dayNumber ?? ''
+    activity?.dayNumber ?? ''
   );
-  const [startTime, setStartTime] = useState(activity.startTime || '10:00');
+  const [startTime, setStartTime] = useState(activity?.startTime || '10:00');
   const [durationMinutes, setDurationMinutes] = useState(
-    activity.durationMinutes || 90
+    activity?.durationMinutes || 90
   );
   const [estimatedCost, setEstimatedCost] = useState(
-    activity.estimatedCost ?? 0
+    activity?.estimatedCost ?? 0
   );
-  const [notes, setNotes] = useState(activity.notes || '');
+  const [notes, setNotes] = useState(activity?.notes || '');
   const [bookingReference, setBookingReference] = useState(
-    activity.bookingReference || ''
+    activity?.bookingReference || ''
   );
   const [image, setImage] = useState(
-    activity.image ||
+    activity?.image ||
       'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=600&q=80'
   );
 
+  useEffect(() => {
+    if (!activity) return;
+    setTitle(activity.title || '');
+    setCategory(activity.category || 'place');
+    setLocation(activity.location || '');
+    setDayNumber(activity.dayNumber ?? '');
+    setStartTime(activity.startTime || '10:00');
+    setDurationMinutes(activity.durationMinutes || 90);
+    setEstimatedCost(activity.estimatedCost ?? 0);
+    setNotes(activity.notes || '');
+    setBookingReference(activity.bookingReference || '');
+    setImage(
+      activity.image ||
+        'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=600&q=80'
+    );
+  }, [activity, isOpen]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) return;
+    if (!activity || !title.trim()) return;
+
+    const validDurationMinutes = Math.max(15, Number(durationMinutes) || 90);
+    const validEstimatedCost = Math.max(0, Number(estimatedCost) || 0);
 
     // Calculate duration display string
-    const hours = Math.floor(durationMinutes / 60);
-    const mins = durationMinutes % 60;
-    let durationStr = `${durationMinutes} mins`;
+    const hours = Math.floor(validDurationMinutes / 60);
+    const mins = validDurationMinutes % 60;
+    let durationStr = `${validDurationMinutes} mins`;
     if (hours > 0 && mins === 0) durationStr = `${hours} ${hours === 1 ? 'hour' : 'hours'}`;
     else if (hours > 0 && mins > 0) durationStr = `${hours}h ${mins}m`;
 
@@ -79,13 +97,15 @@ export const ActivityEditorModal: React.FC<ActivityEditorModalProps> = ({
       status: dayNumber === '' ? 'Unscheduled' : 'Scheduled',
       startTime: dayNumber === '' ? '' : startTime,
       duration: durationStr,
-      durationMinutes,
-      estimatedCost: Number(estimatedCost) || 0,
+      durationMinutes: validDurationMinutes,
+      estimatedCost: validEstimatedCost,
       notes: notes.trim(),
       bookingReference: bookingReference.trim() || undefined,
       image: image.trim(),
     });
   };
+
+  if (!isOpen || !activity) return null;
 
   const daysArray = Array.from({ length: dayCount }, (_, i) => i + 1);
 

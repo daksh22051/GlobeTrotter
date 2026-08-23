@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { motion } from 'motion/react';
 import {
   ChevronLeft,
   ChevronRight,
@@ -21,6 +22,13 @@ import {
 } from '../../types/itinerary';
 import { formatTimeDisplay } from '../../utils/itineraryConflictDetector';
 import { formatCurrency } from '../../utils/currency';
+
+const formatLocalDateISO = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 interface TripMonthCalendarProps {
   itinerary: Itinerary;
@@ -106,60 +114,48 @@ export const TripMonthCalendar: React.FC<TripMonthCalendarProps> = ({
   const calendarMatrix = useMemo(() => {
     const firstDayIndex = new Date(year, month, 1).getDay(); // 0 = Sun
     const totalDaysInMonth = new Date(year, month + 1, 0).getDate();
-    const prevMonthDays = new Date(year, month, 0).getDate();
 
     const cells: {
       date: Date;
       dateISO: string;
       dayNumberInMonth: number;
-      isCurrentMonth: boolean;
+      isPlaceholder: boolean;
       itineraryDay?: ItineraryDay;
       isTripDay: boolean;
     }[] = [];
 
-    // 1. Previous month trailing days
-    for (let i = firstDayIndex - 1; i >= 0; i--) {
-      const d = new Date(year, month - 1, prevMonthDays - i);
-      const dateISO = d.toISOString().split('T')[0];
+    // Keep week alignment without creating interactive dates from adjacent months.
+    for (let i = 0; i < firstDayIndex; i++) {
+      cells.push({
+        date: new Date(year, month, 1),
+        dateISO: '',
+        dayNumberInMonth: 0,
+        isPlaceholder: true,
+        isTripDay: false,
+      });
+    }
+
+    for (let dayOfMonth = 1; dayOfMonth <= totalDaysInMonth; dayOfMonth++) {
+      const d = new Date(year, month, dayOfMonth);
+      const dateISO = formatLocalDateISO(d);
       const itinDay = itineraryDaysByDate[dateISO];
       cells.push({
         date: d,
         dateISO,
-        dayNumberInMonth: prevMonthDays - i,
-        isCurrentMonth: false,
+        dayNumberInMonth: d.getDate(),
+        isPlaceholder: false,
         itineraryDay: itinDay,
         isTripDay: !!itinDay,
       });
     }
 
-    // 2. Current month days
-    for (let i = 1; i <= totalDaysInMonth; i++) {
-      const d = new Date(year, month, i);
-      const dateISO = d.toISOString().split('T')[0];
-      const itinDay = itineraryDaysByDate[dateISO];
+    while (cells.length % 7 !== 0) {
       cells.push({
-        date: d,
-        dateISO,
-        dayNumberInMonth: i,
-        isCurrentMonth: true,
-        itineraryDay: itinDay,
-        isTripDay: !!itinDay,
-      });
-    }
-
-    // 3. Next month leading days (to fill 35 or 42 grid cells)
-    const remaining = (7 - (cells.length % 7)) % 7;
-    for (let i = 1; i <= remaining; i++) {
-      const d = new Date(year, month + 1, i);
-      const dateISO = d.toISOString().split('T')[0];
-      const itinDay = itineraryDaysByDate[dateISO];
-      cells.push({
-        date: d,
-        dateISO,
-        dayNumberInMonth: i,
-        isCurrentMonth: false,
-        itineraryDay: itinDay,
-        isTripDay: !!itinDay,
+        date: new Date(year, month, 1),
+        dateISO: '',
+        dayNumberInMonth: 0,
+        isPlaceholder: true,
+        isTripDay: false,
       });
     }
 
@@ -296,7 +292,7 @@ export const TripMonthCalendar: React.FC<TripMonthCalendarProps> = ({
         </div>
 
         {/* Calendar Day Cells Grid */}
-        <div className="grid grid-cols-7 gap-1 sm:gap-2">
+        <div className="grid min-w-[560px] grid-cols-7 gap-1.5 overflow-x-auto sm:min-w-0 sm:gap-2">
           {calendarMatrix.map((cell, idx) => {
             const itinDay = cell.itineraryDay;
             const isTripDay = !!itinDay;
@@ -306,8 +302,18 @@ export const TripMonthCalendar: React.FC<TripMonthCalendarProps> = ({
               ? (itinDay.activities || []).filter((a) => a.status !== 'Unscheduled')
               : [];
 
+            if (cell.isPlaceholder) {
+              return (
+                <div
+                  key={idx}
+                  aria-hidden="true"
+                  className="min-h-[104px] sm:min-h-[118px] rounded-2xl border border-transparent"
+                />
+              );
+            }
+
             return (
-              <div
+              <motion.div
                 key={idx}
                 onClick={() => {
                   if (isTripDay) {
@@ -329,22 +335,22 @@ export const TripMonthCalendar: React.FC<TripMonthCalendarProps> = ({
                     onMoveActivityDate(actId, cell.dateISO, itinDay.dayNumber);
                   }
                 }}
-                className={`min-h-[90px] sm:min-h-[110px] p-1.5 sm:p-2 rounded-2xl border transition-all flex flex-col justify-between ${
-                  !cell.isCurrentMonth
-                    ? 'bg-[#FAF8F5]/40 opacity-40 border-transparent'
-                    : isTripDay
+                whileHover={isTripDay ? { y: -2, scale: 1.015 } : undefined}
+                transition={{ type: 'spring', stiffness: 360, damping: 24 }}
+                className={`min-h-[104px] sm:min-h-[118px] p-1.5 sm:p-2 rounded-2xl border transition-all flex flex-col justify-between ${
+                  isTripDay
                     ? isSelected
-                      ? 'bg-[#FAF7EE] border-[#17201D] ring-2 ring-[#17201D] shadow-md'
+                      ? 'bg-[#FFF7F2] border-[#FF6B4A] ring-2 ring-[#FF6B4A]/15 shadow-[0_6px_16px_rgba(255,107,74,0.12)]'
                       : isDragTarget
                       ? 'bg-[#E8F8F5] border-2 border-dashed border-[#20B8A6]'
-                      : 'bg-white border-[#EAE6DD] hover:border-[#838F8B] hover:shadow-2xs cursor-pointer'
+                      : 'bg-white border-[#EAE6DD] hover:border-[#FFB09B] hover:shadow-[0_5px_14px_rgba(23,32,29,0.07)] cursor-pointer'
                     : 'bg-[#F9F7F1]/30 border-transparent text-[#838F8B]'
                 }`}
               >
                 {/* Cell Header: Date Number + Day Badge */}
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-1 pb-0.5">
                   <span
-                    className={`text-xs font-black ${
+                    className={`text-sm font-black ${
                       isTripDay
                         ? isSelected
                           ? 'text-[#FF6B4A]'
@@ -359,7 +365,7 @@ export const TripMonthCalendar: React.FC<TripMonthCalendarProps> = ({
                     <span
                       className={`text-[9px] font-black px-1.5 py-0.2 rounded-md ${
                         isSelected
-                          ? 'bg-[#17201D] text-white'
+                          ? 'bg-[#FF6B4A] text-white'
                           : 'bg-[#F0ECE1] text-[#556960]'
                       }`}
                     >
@@ -369,11 +375,11 @@ export const TripMonthCalendar: React.FC<TripMonthCalendarProps> = ({
                 </div>
 
                 {/* Event Chips */}
-                <div className="space-y-1 my-1 flex-1 overflow-hidden">
+                <div className="space-y-1.5 my-1.5 flex-1 overflow-hidden">
                   {activities.slice(0, 2).map((act) => {
                     const CatIcon = getCategoryIcon(act.category);
                     return (
-                      <div
+                      <motion.div
                         key={act.id}
                         draggable
                         onDragStart={(e) => {
@@ -385,17 +391,28 @@ export const TripMonthCalendar: React.FC<TripMonthCalendarProps> = ({
                           e.stopPropagation();
                           onActivityClick(act);
                         }}
-                        className="px-1.5 py-0.5 rounded-lg bg-[#FAF7EE] hover:bg-[#F0ECE1] border border-[#EAE6DD] text-[10px] font-semibold text-[#17201D] flex items-center gap-1 truncate cursor-grab active:cursor-grabbing transition-colors"
-                        title={`${act.startTime} - ${act.title}`}
+                        whileHover={{ scale: 1.03, x: 1 }}
+                        className={`group relative px-1.5 py-1 rounded-lg border text-[10px] font-bold leading-tight flex items-center gap-1 truncate cursor-grab active:cursor-grabbing transition-all hover:shadow-xs ${
+                          act.category === 'hotel'
+                            ? 'bg-[#E8F8F5] border-[#20B8A6]/25 text-[#13796D]'
+                            : act.category === 'food'
+                            ? 'bg-[#FFF3D6] border-[#F59E0B]/25 text-[#9A5B00]'
+                            : act.category === 'experience'
+                            ? 'bg-[#F3EEFF] border-[#8B5CF6]/25 text-[#6D3DB8]'
+                            : 'bg-[#EFF6FF] border-[#3B82F6]/20 text-[#245BA3]'
+                        }`}
                       >
-                        <CatIcon className="w-2.5 h-2.5 text-[#FF6B4A] shrink-0" />
+                        <CatIcon className="w-3 h-3 text-[#FF6B4A] shrink-0" />
                         <span className="truncate">{act.title}</span>
-                      </div>
+                        <span className="pointer-events-none absolute left-0 bottom-full z-20 mb-1 w-max max-w-[180px] -translate-y-1 rounded-lg bg-[#17201D] px-2 py-1 text-[10px] font-semibold text-white opacity-0 shadow-lg transition-all duration-150 group-hover:translate-y-0 group-hover:opacity-100">
+                          {act.startTime} · {act.title}
+                        </span>
+                      </motion.div>
                     );
                   })}
 
                   {activities.length > 2 && (
-                    <div className="text-[9px] font-extrabold text-[#20B8A6] px-1 truncate">
+                    <div className="text-[10px] font-extrabold text-[#179E8E] px-1 truncate">
                       +{activities.length - 2} more
                     </div>
                   )}
@@ -403,7 +420,7 @@ export const TripMonthCalendar: React.FC<TripMonthCalendarProps> = ({
 
                 {/* Cell Footer Quick Add Action */}
                 {isTripDay && (
-                  <div className="pt-0.5 flex justify-end">
+                  <div className="pt-1 flex justify-end">
                     <button
                       type="button"
                       onClick={(e) => {
@@ -417,7 +434,7 @@ export const TripMonthCalendar: React.FC<TripMonthCalendarProps> = ({
                     </button>
                   </div>
                 )}
-              </div>
+              </motion.div>
             );
           })}
         </div>

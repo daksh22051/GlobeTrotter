@@ -1,10 +1,9 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, ArrowRight, Compass, MapPin, Route } from 'lucide-react';
+import { ArrowRight, Compass, Route } from 'lucide-react';
 import { User } from '../../types';
 import { UserPreferences } from '../../types/profile';
 import { TRAVEL_IMAGES } from '../../assets/images';
-import { formatCurrency } from '../../utils/currency';
 
 interface PersonalizedHeroProps {
   currentUser: User | null;
@@ -18,30 +17,6 @@ export const PersonalizedHero: React.FC<PersonalizedHeroProps> = ({
   const navigate = useNavigate();
 
   const firstName = currentUser?.name ? currentUser.name.split(' ')[0] : '';
-  const interests = preferences?.interests && preferences.interests.length > 0
-    ? preferences.interests
-    : ['nature', 'food', 'photography'];
-
-  // Map interests to human readable labels
-  const formattedInterests =
-    interests.length === 1
-      ? interests[0]
-      : interests.length === 2
-      ? `${interests[0]} and ${interests[1]}`
-      : `${interests[0]}, ${interests[1]}, and ${interests[2]}`;
-
-  const stylePace = preferences?.travelStyle || 'balanced';
-  const currency = preferences?.currency || 'INR';
-  const budget = preferences?.budget || 50000;
-  const formattedBudget = formatCurrency(budget, currency);
-
-  const personalityName = preferences?.travelPersonality
-    ? preferences.travelPersonality
-        .split('_')
-        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-        .join(' ')
-    : 'Explorer';
-
   return (
     <section
       id="personalized-hero"
@@ -55,27 +30,14 @@ export const PersonalizedHero: React.FC<PersonalizedHeroProps> = ({
       <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
         {/* Left Column: Personalized Copy & CTAs */}
         <div className="lg:col-span-7 space-y-5">
-          {/* AI Personalized Pill */}
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white border border-[#FFE0D6] shadow-2xs">
-            <div className="w-2 h-2 rounded-full bg-[#FF6B4A] animate-pulse" />
-            <Sparkles className="w-3.5 h-3.5 text-[#FF6B4A]" />
-            <span className="text-xs font-bold text-[#FF6B4A] tracking-wide">
-              AI Tailored for {personalityName}
-            </span>
-          </div>
-
           {/* Main Editorial Headline */}
           <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-[#17201D] tracking-tight leading-[1.2]">
             Ready for your next adventure{firstName ? `, ${firstName}` : ''}?
           </h2>
 
-          {/* Personalized Dynamic Subtext */}
+          {/* Neutral welcome copy when no user-specific context is required. */}
           <p className="text-sm sm:text-base text-[#4A5551] leading-relaxed max-w-xl">
-            Trips crafted around your passion for{' '}
-            <span className="font-bold text-[#17201D] capitalize">{formattedInterests}</span>.
-            Calibrated for a{' '}
-            <span className="font-semibold text-[#17201D]">{stylePace} pace</span> with a typical{' '}
-            <span className="font-semibold text-[#17201D]">{formattedBudget}</span> budget per trip.
+            Plan a trip at your own pace, discover new places, and keep every detail organized in one place.
           </p>
 
           {/* Action CTAs */}
@@ -99,19 +61,6 @@ export const PersonalizedHero: React.FC<PersonalizedHeroProps> = ({
             </button>
           </div>
 
-          {/* Live Micro DNA Tags */}
-          <div className="flex flex-wrap items-center gap-2 pt-2 text-[11px] font-medium text-[#68736F]">
-            <span className="text-[#98A29F]">Your Travel DNA:</span>
-            <span className="px-2.5 py-0.5 rounded-md bg-white border border-[#EAE6DD] text-[#17201D] font-semibold">
-              {personalityName}
-            </span>
-            <span className="px-2.5 py-0.5 rounded-md bg-white border border-[#EAE6DD] text-[#17201D] font-semibold capitalize">
-              {stylePace} Pace
-            </span>
-            <span className="px-2.5 py-0.5 rounded-md bg-white border border-[#EAE6DD] text-[#17201D] font-semibold">
-              {formattedBudget} / trip
-            </span>
-          </div>
         </div>
 
         {/* Right Column: Premium Editorial Travel Visual */}
@@ -126,14 +75,6 @@ export const PersonalizedHero: React.FC<PersonalizedHeroProps> = ({
                 loading="eager"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent" />
-
-              {/* Destination Tag inside image */}
-              <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-white text-xs">
-                <div className="flex items-center gap-1.5 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/20">
-                  <MapPin className="w-3.5 h-3.5 text-[#FF8E72]" />
-                  <span className="font-bold">Trending: Amalfi • Interlaken • Bali</span>
-                </div>
-              </div>
             </div>
 
             {/* Floating Editorial Badge */}
@@ -151,11 +92,6 @@ export const PersonalizedHero: React.FC<PersonalizedHeroProps> = ({
               </div>
             </div>
 
-            {/* Floating Personal Match Pill */}
-            <div className="absolute -bottom-3 -right-2 sm:-right-3 bg-white/95 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-[#EAE6DD] shadow-md flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-[#20B8A6]" />
-              <span className="text-xs font-bold text-[#17201D]">98% Preference Match</span>
-            </div>
           </div>
         </div>
       </div>

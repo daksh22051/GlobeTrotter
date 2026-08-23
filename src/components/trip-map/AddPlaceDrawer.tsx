@@ -10,9 +10,10 @@ import {
   Calendar,
 } from 'lucide-react';
 import { Recommendation, RecommendationCategory } from '../../types/recommendation';
-import { mockRecommendations } from '../../data/mockRecommendations';
+import { buildTripRecommendations } from '../../utils/recommendationMatcher';
 import { ItineraryDay, ItineraryActivity } from '../../types/itinerary';
 import { recommendationToActivity } from '../../services/itineraryService';
+import { getActivityImage, handleActivityImageError } from '../../utils/activityImage';
 
 interface AddPlaceDrawerProps {
   isOpen: boolean;
@@ -39,17 +40,9 @@ export const AddPlaceDrawer: React.FC<AddPlaceDrawerProps> = ({
 
   // Filter recommendations matching destination
   const availableRecommendations = useMemo(() => {
-    const destLower = (destination || '').toLowerCase();
-    let list = mockRecommendations.filter(
-      (m) =>
-        (m.destination && m.destination.toLowerCase().includes(destLower)) ||
-        (m.country && m.country.toLowerCase().includes(destLower)) ||
-        m.location.toLowerCase().includes(destLower)
-    );
-
-    if (list.length === 0) {
-      list = mockRecommendations;
-    }
+    const tripObj = { destination: destination || 'Destination', country: '', currency: 'INR' } as any;
+    const recs = buildTripRecommendations(tripObj);
+    let list = recs.allRecommendations;
 
     if (activeCategory !== 'all') {
       list = list.filter((item) => item.category === activeCategory);
@@ -209,10 +202,11 @@ export const AddPlaceDrawer: React.FC<AddPlaceDrawerProps> = ({
                   className="p-3 rounded-xl bg-white border border-[#EAE6DD] hover:border-[#D6D0C3] transition-all flex items-start gap-3 shadow-2xs"
                 >
                   <img
-                    src={rec.image}
+                    src={getActivityImage(rec)}
                     alt={rec.name}
                     className="w-16 h-16 rounded-lg object-cover border border-[#EAE6DD] shrink-0"
                     referrerPolicy="no-referrer"
+                    onError={(event) => handleActivityImageError(event, rec.category)}
                   />
 
                   <div className="flex-1 min-w-0">

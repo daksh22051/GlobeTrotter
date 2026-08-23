@@ -1,8 +1,8 @@
 import React, { useState, useRef } from 'react';
+import { motion, useMotionValue, useTransform } from 'motion/react';
 import {
   GripVertical,
   MapPin,
-  Clock,
   Wallet,
   MoreVertical,
   Edit2,
@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { ItineraryActivity, ItineraryConflict } from '../../types/itinerary';
 import { formatTimeDisplay, calculateEndTime } from '../../utils/itineraryConflictDetector';
+import { getActivityImage, handleActivityImageError } from '../../utils/activityImage';
 
 interface ActivityCardProps {
   activity: ItineraryActivity;
@@ -48,6 +49,10 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const pointerX = useMotionValue(0.5);
+  const pointerY = useMotionValue(0.5);
+  const rotateX = useTransform(pointerY, [0, 1], [4, -4]);
+  const rotateY = useTransform(pointerX, [0, 1], [-4, 4]);
 
   // Close menu on click outside
   React.useEffect(() => {
@@ -122,17 +127,34 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
     onDragEnd(e);
   };
 
+  const handlePointerMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const bounds = e.currentTarget.getBoundingClientRect();
+    pointerX.set((e.clientX - bounds.left) / bounds.width);
+    pointerY.set((e.clientY - bounds.top) / bounds.height);
+  };
+
+  const resetPointer = () => {
+    pointerX.set(0.5);
+    pointerY.set(0.5);
+  };
+
   return (
-    <div
+    <motion.div
       draggable
       onDragStart={handleDragStartInternal}
       onDragEnd={handleDragEndInternal}
-      className={`group relative bg-white rounded-2xl border transition-all duration-150 ${
+      onMouseMove={handlePointerMove}
+      onMouseLeave={resetPointer}
+      initial={{ opacity: 0, y: 14, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.4, delay: Math.min(index * 0.06, 0.36), ease: 'easeOut' }}
+      style={{ rotateX, rotateY, transformPerspective: 1000 }}
+      className={`group relative rounded-2xl border bg-white/95 backdrop-blur-sm transition-[border-color,box-shadow,opacity] duration-200 ${
         conflict
           ? conflict.severity === 'error'
-            ? 'border-[#FF6B4A] ring-2 ring-[#FF6B4A]/20 bg-[#FFFDFD]'
-            : 'border-[#FFB020] ring-2 ring-[#FFB020]/20 bg-[#FFFDF8]'
-          : 'border-[#EAE6DD] hover:border-[#D0C9B8] shadow-2xs hover:shadow-xs'
+            ? 'border-[#FF8E72] shadow-[0_10px_30px_rgba(255,107,74,0.16)]'
+            : 'border-[#F3C15D] shadow-[0_10px_30px_rgba(224,138,0,0.14)]'
+          : 'border-[#DDE7E3] shadow-[0_6px_20px_rgba(23,32,29,0.06)] hover:border-[#20B8A6]/60 hover:shadow-[0_14px_32px_rgba(32,184,166,0.14)]'
       } ${isDragging ? 'opacity-40 scale-[0.98] border-dashed border-[#FF6B4A]' : ''}`}
     >
       <div className="p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -161,10 +183,11 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
           {/* Activity Image Thumbnail */}
           <div className="relative w-16 h-16 sm:w-18 sm:h-18 rounded-xl overflow-hidden bg-[#F4F1EA] border border-[#EAE6DD] shrink-0">
             <img
-              src={activity.image || 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=300&q=80'}
+              src={getActivityImage(activity)}
               alt={activity.title}
               referrerPolicy="no-referrer"
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+              onError={(event) => handleActivityImageError(event, activity.category)}
             />
             {activity.isCopied && (
               <span className="absolute top-1 left-1 px-1.5 py-0.2 rounded bg-[#17201D]/80 text-white text-[9px] font-bold">
@@ -197,16 +220,11 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
               {activity.title}
             </h3>
 
-            {/* Meta Row: Location, Duration, Cost */}
+            {/* Meta Row: Location & Cost */}
             <div className="flex items-center flex-wrap gap-x-3 gap-y-1 text-xs text-[#68736F] mt-1">
               <div className="flex items-center gap-1">
                 <MapPin className="w-3 h-3 text-[#FF6B4A] shrink-0" />
                 <span className="truncate max-w-[130px] sm:max-w-[200px]">{activity.location}</span>
-              </div>
-
-              <div className="flex items-center gap-1">
-                <Clock className="w-3 h-3 text-[#5E6B67] shrink-0" />
-                <span>{activity.duration}</span>
               </div>
 
               <div className="flex items-center gap-1 font-semibold text-[#17201D]">
@@ -228,19 +246,18 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
         <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto border-t sm:border-t-0 pt-2 sm:pt-0 border-[#F4F1EA]">
           {/* Conflict Pill if present */}
           {conflict && (
-            <div
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${
+            <button
+              type="button"
+              className={`inline-flex items-center justify-center p-2 rounded-lg text-xs font-bold border cursor-help ${
                 conflict.severity === 'error'
-                  ? 'bg-[#FFF0EC] text-[#E55837] border-[#FF6B4A]/30'
-                  : 'bg-[#FFF8E7] text-[#B45309] border-[#FFB020]/30'
+                  ? 'bg-[#FFF0EC] text-[#E55837] border-[#FF6B4A]/25'
+                  : 'bg-[#FFF8E7] text-[#B45309] border-[#FFB020]/25'
               }`}
               title={conflict.description}
+              aria-label={`${conflict.type === 'overlap' ? 'Conflict' : 'Tight schedule'}: ${conflict.description}`}
             >
               <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-              <span className="text-[11px] truncate max-w-[150px] sm:max-w-[180px]">
-                {conflict.type === 'overlap' ? 'Schedule Conflict' : 'Tight Schedule'}
-              </span>
-            </div>
+            </button>
           )}
 
           {/* Quick Edit button */}
@@ -334,6 +351,6 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
           <span className="flex-1">{conflict.description}</span>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 };

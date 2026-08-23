@@ -76,6 +76,7 @@ export const AddEditExpenseModal: React.FC<AddEditExpenseModalProps> = ({
   const [isSaved, setIsSaved] = useState(false);
 
   useEffect(() => {
+    if (!isOpen) return;
     if (initialExpense) {
       setName(initialExpense.name);
       setAmount(initialExpense.amount.toString());
@@ -89,14 +90,14 @@ export const AddEditExpenseModal: React.FC<AddEditExpenseModalProps> = ({
       setAmount('');
       setCurrency(trip.currency || 'INR');
       setCategory('food');
-      setDate(new Date().toISOString().split('T')[0]);
+      setDate(trip.startDate || new Date().toISOString().split('T')[0]);
       setPaymentMethod('card');
       setNotes('');
     }
     setErrors({});
     setIsSaved(false);
     setIsSaving(false);
-  }, [initialExpense, isOpen, trip]);
+  }, [initialExpense, isOpen, trip?.currency, trip?.startDate]);
 
   if (!isOpen) return null;
 

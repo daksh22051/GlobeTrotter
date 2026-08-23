@@ -17,7 +17,7 @@ import { profileService } from '../services/profileService';
 import { tripService } from '../services/tripService';
 import { User } from '../types';
 import { CurrencyCode, BudgetStyle, TravelStyle } from '../types/profile';
-import { Trip, TripType, TransportPreference, AccommodationStyle, TripPlannerDraft } from '../types/trip';
+import { Trip, TripType, TransportPreference, AccommodationStyle, TripPlannerDraft, TripCity } from '../types/trip';
 import { TripProgress } from '../components/trip-planner/TripProgress';
 import { BasicDetailsStep } from '../components/trip-planner/BasicDetailsStep';
 import { PreferencesStep } from '../components/trip-planner/PreferencesStep';
@@ -27,6 +27,21 @@ import { TripSummary } from '../components/trip-planner/TripSummary';
 import { TripSuccess } from '../components/trip-planner/TripSuccess';
 import { LeavePlannerModal } from '../components/trip-planner/LeavePlannerModal';
 import { FEATURED_DESTINATIONS } from '../data/destinations';
+import { buildTripRecommendations } from '../utils/recommendationMatcher';
+import { itineraryService } from '../services/itineraryService';
+
+const getCurrencyForCountry = (country: string): CurrencyCode => {
+  const normalizedCountry = country.toLowerCase();
+  if (normalizedCountry === 'india') return 'INR';
+  if (normalizedCountry.includes('japan')) return 'JPY';
+  if (normalizedCountry.includes('uae') || normalizedCountry.includes('emirates')) return 'AED';
+  if (normalizedCountry.includes('united kingdom') || normalizedCountry.includes('britain')) return 'GBP';
+  if (normalizedCountry.includes('australia')) return 'AUD';
+  if (normalizedCountry.includes('canada')) return 'CAD';
+  if (normalizedCountry.includes('singapore')) return 'SGD';
+  if (['france', 'italy', 'spain', 'germany', 'netherlands', 'greece'].some((countryName) => normalizedCountry.includes(countryName))) return 'EUR';
+  return 'USD';
+};
 
 export const PlanTripPage: React.FC = () => {
   const navigate = useNavigate();
@@ -47,17 +62,21 @@ export const PlanTripPage: React.FC = () => {
   const [country, setCountry] = useState<string>('');
   const [destinationImage, setDestinationImage] = useState<string>('');
   const [destinationId, setDestinationId] = useState<string>('');
+  const [cities, setCities] = useState<TripCity[]>([]);
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
+  const [arrivalLocation, setArrivalLocation] = useState<string>('');
+  const [arrivalTime, setArrivalTime] = useState<string>('');
   const [adultsCount, setAdultsCount] = useState<number>(2);
   const [childrenCount, setChildrenCount] = useState<number>(0);
   const [tripType, setTripType] = useState<TripType>('leisure');
 
   const [budget, setBudget] = useState<number>(50000);
+  const [isBudgetConfigured, setIsBudgetConfigured] = useState(false);
   const [currency, setCurrency] = useState<CurrencyCode>('INR');
   const [budgetStyle, setBudgetStyle] = useState<BudgetStyle>('balanced');
   const [travelPace, setTravelPace] = useState<TravelStyle>('balanced');
-  const [transportPreferences, setTransportPreferences] = useState<TransportPreference[]>(['flights', 'walking']);
+  const [transportPreferences, setTransportPreferences] = useState<TransportPreference[]>(['flights']);
   const [accommodationStyle, setAccommodationStyle] = useState<AccommodationStyle>('boutique_hotel');
 
   const [interests, setInterests] = useState<string[]>(['Food', 'Culture', 'Nature']);
@@ -71,6 +90,9 @@ export const PlanTripPage: React.FC = () => {
   const [draftToast, setDraftToast] = useState<string | null>(null);
   const [showLeaveModal, setShowLeaveModal] = useState<boolean>(false);
 
+  const destQuery = searchParams.get('dest');
+  const isQuickTrip = searchParams.get('quick') === '1' && Boolean(destQuery);
+
   // Initialize from destination query param or preferences/draft
   useEffect(() => {
     const user = authService.getCurrentUser();
@@ -83,17 +105,39 @@ export const PlanTripPage: React.FC = () => {
     const userPrefs = profileService.getPreferences(user.id);
 
     // Check if query param pre-fills destination (e.g. from Dashboard explore links: /plan-trip?dest=Tokyo)
-    const destQuery = searchParams.get('dest');
     if (destQuery) {
       const match = FEATURED_DESTINATIONS.find(
         (d) => d.name.toLowerCase() === destQuery.toLowerCase() || d.id === destQuery
       );
       if (match) {
+        const defaultDurationDays = 4;
+        const defaultStartDate = new Date();
+        const defaultEndDate = new Date(defaultStartDate);
+        defaultEndDate.setDate(defaultStartDate.getDate() + defaultDurationDays - 1);
+        const popularityMultiplier = 1 + Math.max(0, match.rating - 4.5) * 0.1;
+        const costMultiplier = match.costIndex === 'Budget' ? 0.9 : match.costIndex === 'Luxury' ? 1.25 : 1;
+
         setDestination(match.name);
         setCountry(match.country);
+        setCurrency(getCurrencyForCountry(match.country));
         setDestinationImage(match.imageUrl || match.image);
         setDestinationId(match.id);
         setName(`${match.name} Getaway`);
+        if (isQuickTrip) {
+          setStartDate(defaultStartDate.toISOString().split('T')[0]);
+          setEndDate(defaultEndDate.toISOString().split('T')[0]);
+          setBudget(Math.round(match.estimatedDailyBudget * defaultDurationDays * 2 * popularityMultiplier * costMultiplier));
+          setIsBudgetConfigured(true);
+          setInterests(match.tags.slice(0, 3));
+          setCities([{
+            cityName: match.name,
+            country: match.country,
+            orderIndex: 0,
+            stayDurationDays: defaultDurationDays,
+            latitude: match.coordinates?.latitude,
+            longitude: match.coordinates?.longitude,
+          }]);
+        }
       }
     }
 
@@ -105,16 +149,24 @@ export const PlanTripPage: React.FC = () => {
       if (savedDraft.country) setCountry(savedDraft.country);
       if (savedDraft.destinationImage) setDestinationImage(savedDraft.destinationImage);
       if (savedDraft.destinationId) setDestinationId(savedDraft.destinationId);
+      if (savedDraft.cities && savedDraft.cities.length > 0) setCities(savedDraft.cities);
       if (savedDraft.startDate) setStartDate(savedDraft.startDate);
       if (savedDraft.endDate) setEndDate(savedDraft.endDate);
+      if (savedDraft.arrivalLocation) setArrivalLocation(savedDraft.arrivalLocation);
+      if (savedDraft.arrivalTime) setArrivalTime(savedDraft.arrivalTime);
       if (savedDraft.adultsCount) setAdultsCount(savedDraft.adultsCount);
       if (savedDraft.childrenCount !== undefined) setChildrenCount(savedDraft.childrenCount);
       if (savedDraft.tripType) setTripType(savedDraft.tripType);
       if (savedDraft.budget) setBudget(savedDraft.budget);
+      if (savedDraft.budget) setIsBudgetConfigured(true);
       if (savedDraft.currency) setCurrency(savedDraft.currency);
       if (savedDraft.budgetStyle) setBudgetStyle(savedDraft.budgetStyle);
       if (savedDraft.travelPace) setTravelPace(savedDraft.travelPace);
-      if (savedDraft.transportPreferences) setTransportPreferences(savedDraft.transportPreferences);
+      if (savedDraft.transportPreferences && savedDraft.transportPreferences.length > 0) {
+        setTransportPreferences(savedDraft.transportPreferences.slice(0, 1));
+      } else {
+        setTransportPreferences(['flights']);
+      }
       if (savedDraft.accommodationStyle) setAccommodationStyle(savedDraft.accommodationStyle);
       if (savedDraft.interests && savedDraft.interests.length > 0) setInterests(savedDraft.interests);
       if (savedDraft.notes) setNotes(savedDraft.notes);
@@ -126,11 +178,11 @@ export const PlanTripPage: React.FC = () => {
     } else if (userPrefs) {
       // Pre-fill from profile preferences
       if (userPrefs.currency) setCurrency(userPrefs.currency);
-      if (userPrefs.budgetStyle) setBudgetStyle(userPrefs.budgetStyle);
-      if (userPrefs.travelStyle) setTravelPace(userPrefs.travelStyle);
       if (userPrefs.interests && userPrefs.interests.length > 0) setInterests(userPrefs.interests);
+      if (userPrefs.budgetStyle) setBudgetStyle(userPrefs.budgetStyle as BudgetStyle);
+      if (userPrefs.travelStyle) setTravelPace(userPrefs.travelStyle as TravelStyle);
     }
-  }, [navigate, searchParams]);
+  }, [navigate, destQuery, isQuickTrip]);
 
   // Handle draft toast timeout
   useEffect(() => {
@@ -149,17 +201,20 @@ export const PlanTripPage: React.FC = () => {
       country,
       destinationImage,
       destinationId,
+      cities,
       startDate,
       endDate,
+      arrivalLocation,
+      arrivalTime,
       adultsCount,
       childrenCount,
       tripType,
       budget,
       currency,
-      budgetStyle,
-      travelPace,
+      budgetStyle: budgetStyle || 'balanced',
+      travelPace: travelPace || 'balanced',
       transportPreferences,
-      accommodationStyle,
+      accommodationStyle: accommodationStyle || 'boutique_hotel',
       interests,
       notes,
       updatedAt: new Date().toISOString(),
@@ -171,8 +226,11 @@ export const PlanTripPage: React.FC = () => {
     country,
     destinationImage,
     destinationId,
+    cities,
     startDate,
     endDate,
+    arrivalLocation,
+    arrivalTime,
     adultsCount,
     childrenCount,
     tripType,
@@ -272,7 +330,7 @@ export const PlanTripPage: React.FC = () => {
 
     setIsSubmitting(true);
 
-    setTimeout(() => {
+    setTimeout(async () => {
       try {
         const totalTravelers = adultsCount + childrenCount;
         
@@ -282,13 +340,15 @@ export const PlanTripPage: React.FC = () => {
         const diffDays = Math.max(1, Math.ceil((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)) + 1);
         const dateDisplay = `${s.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${e.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
 
-        const newTrip = tripService.createTrip({
+        const newTrip = await tripService.createTrip({
           name: name.trim(),
           destination: destination.trim(),
           country: country.trim() || 'Global Destination',
           coverImage: destinationImage || 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=1200&q=85',
           startDate,
           endDate,
+          arrivalLocation: arrivalLocation.trim() || undefined,
+          arrivalTime: arrivalTime || undefined,
           dateDisplay,
           durationDays: diffDays,
           travelersCount: totalTravelers,
@@ -297,11 +357,14 @@ export const PlanTripPage: React.FC = () => {
           tripType,
           budget,
           currency,
-          budgetStyle,
-          travelPace,
+          budgetStyle: budgetStyle || 'balanced',
+          travelPace: travelPace || 'balanced',
           transportPreferences,
-          accommodationStyle,
+          accommodationStyle: accommodationStyle || 'boutique_hotel',
           interests,
+          cities: cities.length > 0 ? cities : [
+            { cityName: destination.trim(), country: country.trim(), orderIndex: 0, stayDurationDays: diffDays }
+          ],
           notes: notes.trim() || undefined,
           status: 'planning',
         }, userId);
@@ -309,13 +372,21 @@ export const PlanTripPage: React.FC = () => {
         // Clear draft on successful creation
         tripService.clearDraft(userId);
         setCreatedTrip(newTrip);
-        setCurrentStep(5); // Step 5: Success
+        itineraryService.getItinerary(newTrip.id, newTrip);
+        navigate(`/trip/${newTrip.id}/itinerary`);
       } catch (err) {
         console.error('Error creating trip:', err);
+        setDraftToast('We could not save your trip. Please try again.');
       } finally {
         setIsSubmitting(false);
       }
     }, 600);
+  };
+
+  const handleBuildAIItinerary = () => {
+    if (!createdTrip) return;
+    itineraryService.getItinerary(createdTrip.id, createdTrip);
+    navigate(`/trip/${createdTrip.id}/itinerary`);
   };
 
   // Exit handlers
@@ -341,11 +412,12 @@ export const PlanTripPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen w-full bg-[#FFFDF8] text-[#17201D] antialiased flex flex-col">
+    <div className="min-h-screen w-full bg-[#FFFDF8] text-[#17201D] antialiased flex flex-col relative overflow-hidden">
+      <div className="pointer-events-none absolute inset-0 map-contour-bg opacity-70" />
       {/* 1. Planner Top Header */}
       <header
         id="planner-header"
-        className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-[#EAE6DD] px-4 sm:px-8 py-3.5 flex items-center justify-between transition-all"
+        className="sticky top-0 z-30 bg-[#FFFDF8]/85 backdrop-blur-xl border-b border-[#EAE6DD]/80 px-4 sm:px-8 py-3.5 flex items-center justify-between transition-all"
       >
         {/* Left: Back / Exit & Brand */}
         <div className="flex items-center gap-3">
@@ -362,13 +434,14 @@ export const PlanTripPage: React.FC = () => {
 
           <div className="h-4 w-px bg-[#EAE6DD] hidden sm:block" />
 
-          <div className="hidden sm:flex items-center gap-2">
-            <div className="w-6 h-6 rounded-lg bg-[#FF6B4A] text-white flex items-center justify-center">
+          <div className="hidden sm:flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-xl bg-[#17201D] text-white flex items-center justify-center shadow-sm">
               <Compass className="w-3.5 h-3.5" />
             </div>
-            <span className="text-xs font-black tracking-tight text-[#17201D]">
-              Trip Planner
-            </span>
+            <div>
+              <span className="text-xs font-black tracking-tight text-[#17201D] block">Trip Planner</span>
+              <span className="text-[10px] text-[#838F8B] font-medium block">Shape your next story</span>
+            </div>
           </div>
         </div>
 
@@ -382,15 +455,17 @@ export const PlanTripPage: React.FC = () => {
         {/* Right: Save & Finish Later */}
         {currentStep <= 4 && (
           <div className="flex items-center gap-2">
-            <button
+            <motion.button
               type="button"
               onClick={() => handleSaveDraft(true)}
+              whileHover={prefersReducedMotion ? undefined : { scale: 1.03, y: -1 }}
+              whileTap={prefersReducedMotion ? undefined : { scale: 0.96 }}
               className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#FFF8F5] hover:bg-[#FFF1EC] text-[#FF6B4A] text-xs font-bold border border-[#FFD9CE] transition-colors cursor-pointer"
               title="Save draft and continue later"
             >
               <Bookmark className="w-3.5 h-3.5" />
               <span>Save Draft</span>
-            </button>
+            </motion.button>
           </div>
         )}
       </header>
@@ -430,26 +505,58 @@ export const PlanTripPage: React.FC = () => {
       </AnimatePresence>
 
       {/* 4. Main Planner Workspace */}
-      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10">
+      <main className="relative z-10 flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10">
         {currentStep === 5 && createdTrip ? (
           /* Step 5: Trip Created Success View */
-          <TripSuccess trip={createdTrip} />
+          <TripSuccess
+            trip={createdTrip}
+            recommendations={buildTripRecommendations(createdTrip, profileService.getPreferences(userId))}
+            onBuildAIItinerary={handleBuildAIItinerary}
+          />
         ) : (
           <div className="space-y-8">
-            {/* Top Stepper Indicator */}
-            <div className="max-w-xl mx-auto mb-6">
-              <TripProgress
-                currentStep={currentStep}
-                totalSteps={4}
-                onStepClick={handleStepClick}
-                maxAccessibleStep={maxAccessibleStep}
-              />
+            <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-end justify-between gap-4 px-1">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#FF6B4A] mb-2">Your next chapter</p>
+                <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-[#17201D]">Plan a trip worth remembering.</h1>
+                <p className="text-sm text-[#68736F] mt-2 max-w-xl">Tell us the essentials, and we&apos;ll turn your ideas into a thoughtful route with room for discovery.</p>
+              </div>
+              <div className="flex items-center gap-3 self-start sm:self-auto px-3.5 py-2.5 rounded-2xl bg-white/75 border border-[#EAE6DD] shadow-2xs">
+                <div className="relative w-9 h-9 flex items-center justify-center">
+                  <svg className="w-9 h-9 -rotate-90" viewBox="0 0 36 36" aria-hidden="true">
+                    <circle cx="18" cy="18" r="15" fill="none" stroke="#F4F1EA" strokeWidth="3" />
+                    <circle cx="18" cy="18" r="15" fill="none" stroke="#FF6B4A" strokeWidth="3" strokeDasharray={`${(currentStep / 4) * 94} 94`} strokeLinecap="round" />
+                  </svg>
+                  <span className="absolute text-[10px] font-black text-[#17201D]">{currentStep}/4</span>
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-[#838F8B]">Planning progress</p>
+                  <p className="text-xs font-extrabold text-[#17201D]">{currentStep === 1 ? 'Start with the essentials' : currentStep === 2 ? 'Set your travel rhythm' : currentStep === 3 ? 'Add your inspiration' : 'Ready to create'}</p>
+                </div>
+              </div>
             </div>
+            {/* Top Stepper Indicator */}
+            {!isQuickTrip && (
+              <div className="max-w-xl mx-auto mb-6">
+                <TripProgress
+                  currentStep={currentStep}
+                  totalSteps={4}
+                  onStepClick={handleStepClick}
+                  maxAccessibleStep={maxAccessibleStep}
+                />
+              </div>
+            )}
 
             {/* 2-Column Responsive Layout */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            <motion.div
+              key={`planner-step-${currentStep}`}
+              initial={prefersReducedMotion ? false : { opacity: 0, y: 14 }}
+              animate={prefersReducedMotion ? undefined : { opacity: 1, y: 0 }}
+              transition={{ duration: 0.35, ease: 'easeOut' }}
+              className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start"
+            >
               {/* Left Column: Interactive Form Steps (7 or 8 cols on lg) */}
-              <div className="lg:col-span-7 xl:col-span-8 bg-white rounded-3xl p-6 sm:p-8 lg:p-10 border border-[#EAE6DD] shadow-xs">
+              <div className="lg:col-span-7 xl:col-span-8 bg-white/95 rounded-[2rem] p-6 sm:p-8 lg:p-10 border border-[#EAE6DD] shadow-[0_18px_55px_rgba(23,32,29,0.07)]">
                 {/* Step 1: Basic Details */}
                 {currentStep === 1 && (
                   <BasicDetailsStep
@@ -457,8 +564,11 @@ export const PlanTripPage: React.FC = () => {
                     destination={destination}
                     country={country}
                     destinationImage={destinationImage}
+                    cities={cities}
                     startDate={startDate}
                     endDate={endDate}
+                    arrivalLocation={arrivalLocation}
+                    arrivalTime={arrivalTime}
                     adultsCount={adultsCount}
                     childrenCount={childrenCount}
                     tripType={tripType}
@@ -466,11 +576,17 @@ export const PlanTripPage: React.FC = () => {
                     onUpdate={(updates) => {
                       if (updates.name !== undefined) setName(updates.name);
                       if (updates.destination !== undefined) setDestination(updates.destination);
-                      if (updates.country !== undefined) setCountry(updates.country);
+                      if (updates.country !== undefined) {
+                        setCountry(updates.country);
+                        setCurrency(getCurrencyForCountry(updates.country));
+                      }
                       if (updates.destinationImage !== undefined) setDestinationImage(updates.destinationImage);
                       if (updates.destinationId !== undefined) setDestinationId(updates.destinationId);
+                      if (updates.cities !== undefined) setCities(updates.cities);
                       if (updates.startDate !== undefined) setStartDate(updates.startDate);
                       if (updates.endDate !== undefined) setEndDate(updates.endDate);
+                      if (updates.arrivalLocation !== undefined) setArrivalLocation(updates.arrivalLocation);
+                      if (updates.arrivalTime !== undefined) setArrivalTime(updates.arrivalTime);
                       if (updates.adultsCount !== undefined) setAdultsCount(updates.adultsCount);
                       if (updates.childrenCount !== undefined) setChildrenCount(updates.childrenCount);
                       if (updates.tripType !== undefined) setTripType(updates.tripType);
@@ -488,7 +604,10 @@ export const PlanTripPage: React.FC = () => {
                     transportPreferences={transportPreferences}
                     accommodationStyle={accommodationStyle}
                     onUpdate={(updates) => {
-                      if (updates.budget !== undefined) setBudget(updates.budget);
+                      if (updates.budget !== undefined) {
+                        setBudget(updates.budget);
+                        setIsBudgetConfigured(true);
+                      }
                       if (updates.currency !== undefined) setCurrency(updates.currency);
                       if (updates.budgetStyle !== undefined) setBudgetStyle(updates.budgetStyle);
                       if (updates.travelPace !== undefined) setTravelPace(updates.travelPace);
@@ -553,14 +672,17 @@ export const PlanTripPage: React.FC = () => {
                       <div />
                     )}
 
-                    <button
+                    <motion.button
                       type="button"
-                      onClick={handleNextStep}
+                      onClick={isQuickTrip ? handleCreateTrip : handleNextStep}
+                      disabled={isSubmitting}
+                      whileHover={prefersReducedMotion ? undefined : { scale: 1.02, y: -2 }}
+                      whileTap={prefersReducedMotion ? undefined : { scale: 0.97 }}
                       className="py-3.5 px-7 rounded-full bg-[#FF6B4A] hover:bg-[#E55837] text-white text-xs sm:text-sm font-extrabold shadow-sm shadow-[#FF6B4A]/25 hover:shadow-md hover:shadow-[#FF6B4A]/30 active:scale-[0.98] transition-all flex items-center gap-2 cursor-pointer ml-auto"
                     >
-                      <span>Continue</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </button>
+                      <span>{isQuickTrip ? (isSubmitting ? 'Creating...' : 'Create Quick Trip') : 'Continue'}</span>
+                      {isQuickTrip ? <Sparkles className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />}
+                    </motion.button>
                   </div>
                 )}
               </div>
@@ -584,9 +706,11 @@ export const PlanTripPage: React.FC = () => {
                   transportPreferences={transportPreferences}
                   accommodationStyle={accommodationStyle}
                   interests={interests}
+                  destinationId={destinationId}
+                  isBudgetConfigured={isBudgetConfigured}
                 />
               </div>
-            </div>
+            </motion.div>
           </div>
         )}
       </main>

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Star, Heart, ArrowUpRight, Sparkles, MapPin } from 'lucide-react';
+import { Star, Heart, ArrowUpRight, MapPin } from 'lucide-react';
 import { ScoredDestination } from '../../services/recommendationService';
 import { CurrencyCode } from '../../types/profile';
 import { formatCurrency } from '../../utils/currency';
@@ -35,10 +35,6 @@ export const RecommendedDestinations: React.FC<RecommendedDestinationsProps> = (
             <h3 className="text-base sm:text-lg font-extrabold text-[#17201D] tracking-tight">
               Picked for you
             </h3>
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#FFF2EE] text-[#FF6B4A] text-[10px] font-bold">
-              <Sparkles className="w-3 h-3" />
-              <span>Tailored matches</span>
-            </span>
           </div>
           <p className="text-xs text-[#68736F]">
             Destinations aligned with your travel interests, style, and pacing
@@ -63,11 +59,11 @@ export const RecommendedDestinations: React.FC<RecommendedDestinationsProps> = (
           return (
             <div
               key={dest.id}
-              onClick={() => navigate('/plan-trip')}
+              onClick={() => navigate(`/plan-trip?dest=${encodeURIComponent(dest.id)}&quick=1`)}
               className="group bg-white rounded-3xl overflow-hidden border border-[#EAE6DD] hover:border-[#FF6B4A]/50 shadow-2xs hover:shadow-md hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col justify-between"
               role="button"
               tabIndex={0}
-              onKeyDown={(e) => e.key === 'Enter' && navigate('/plan-trip')}
+              onKeyDown={(e) => e.key === 'Enter' && navigate(`/plan-trip?dest=${encodeURIComponent(dest.id)}&quick=1`)}
               aria-label={`View ${dest.name}, ${dest.country}`}
             >
               {/* Image Container */}
@@ -79,14 +75,6 @@ export const RecommendedDestinations: React.FC<RecommendedDestinationsProps> = (
                   loading="lazy"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-80 group-hover:opacity-90 transition-opacity" />
-
-                {/* Match Score Badge */}
-                <div className="absolute top-3 left-3">
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md text-white text-[10px] font-extrabold border border-white/20">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#20B8A6]" />
-                    <span>{dest.matchScore}% Match</span>
-                  </span>
-                </div>
 
                 {/* Save / Favorite Button */}
                 <button

@@ -29,15 +29,17 @@ import {
 import { TripSortOption, sortTrips } from '../utils/tripSorting';
 import { searchTrips } from '../utils/tripSearch';
 import { getTripStatusCounts, getNextUpcomingTrip } from '../utils/tripStatus';
-import { Undo2, X, Sparkles, Check } from 'lucide-react';
+import { Undo2, X, Sparkles, Check, ChevronDown, ChevronUp } from 'lucide-react';
 
 export const TripsPage: React.FC = () => {
   const navigate = useNavigate();
   const currentUser = authService.getCurrentUser();
+  const currentUserId = currentUser?.id;
 
   // Primary data state
   const [trips, setTrips] = useState<Trip[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   // View mode state (grid vs list)
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -46,6 +48,7 @@ export const TripsPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [filters, setFilters] = useState<TripFilterState>(DEFAULT_TRIP_FILTERS);
   const [sortOption, setSortOption] = useState<TripSortOption>('upcoming_first');
+  const [showAllJourneys, setShowAllJourneys] = useState(false);
 
   // Modals state
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
@@ -64,17 +67,26 @@ export const TripsPage: React.FC = () => {
 
   // Load trips from tripService
   const loadTrips = useCallback(() => {
-    if (!currentUser) return;
+    if (!currentUserId) return;
     setIsLoading(true);
+    setFetchError(null);
     try {
-      const userTrips = tripService.getUserTrips(currentUser.id);
+      const userTrips = tripService.getUserTrips(currentUserId);
       setTrips(userTrips);
     } catch (err) {
       console.error('Failed to load trips:', err);
     } finally {
       setIsLoading(false);
     }
-  }, [currentUser]);
+
+    // Background fetch from PostgreSQL
+    tripService.fetchTrips(currentUserId).then((freshTrips) => {
+      setTrips(freshTrips);
+    }).catch((error) => {
+      console.error('Failed to fetch trips from the server:', error);
+      setFetchError('We could not refresh your trips.');
+    });
+  }, [currentUserId]);
 
   useEffect(() => {
     loadTrips();
@@ -119,6 +131,16 @@ export const TripsPage: React.FC = () => {
     return result;
   }, [trips, searchQuery, filters, sortOption]);
 
+  const journeyTrips = useMemo(() => {
+    if (!featuredTrip) return filteredAndSortedTrips;
+    return filteredAndSortedTrips.filter((trip) => trip.id !== featuredTrip.id);
+  }, [filteredAndSortedTrips, featuredTrip]);
+
+  const visibleJourneyTrips = useMemo(
+    () => (showAllJourneys ? journeyTrips : journeyTrips.slice(0, 4)),
+    [journeyTrips, showAllJourneys]
+  );
+
   // Handler: Toggle Favorite
   const handleToggleFavorite = (tripId: string) => {
     const updated = tripService.toggleFavorite(tripId);
@@ -152,11 +174,11 @@ export const TripsPage: React.FC = () => {
   };
 
   // Handler: Duplicate Trip
-  const handleConfirmDuplicate = () => {
+  const handleConfirmDuplicate = async () => {
     if (!duplicatingTrip) return;
     setIsProcessing(true);
     try {
-      const duplicated = tripService.duplicateTrip(duplicatingTrip.id);
+      const duplicated = await tripService.duplicateTrip(duplicatingTrip.id);
       if (duplicated) {
         setTrips((prev) => [duplicated, ...prev]);
       }
@@ -215,6 +237,19 @@ export const TripsPage: React.FC = () => {
     setSearchQuery('');
   };
 
+  const handleClearAllTrips = () => {
+    if (trips.length === 0) return;
+    const confirmed = window.confirm('Remove all saved trips from My Trips? This cannot be undone.');
+    if (!confirmed) return;
+    if (tripService.deleteAllTrips(currentUserId)) {
+      setTrips([]);
+      setSummaryTrip(null);
+      setEditingTrip(null);
+      setDuplicatingTrip(null);
+      setDeletingTrip(null);
+    }
+  };
+
   const handleLogout = () => {
     authService.logout();
     navigate('/login');
@@ -241,6 +276,7 @@ export const TripsPage: React.FC = () => {
             viewMode={viewMode}
             onViewModeChange={setViewMode}
             totalTripsCount={trips.length}
+            onClearAll={handleClearAllTrips}
           />
 
           {/* 2. Status Category Tabs */}
@@ -259,12 +295,6 @@ export const TripsPage: React.FC = () => {
             onResetFilters={handleResetFilters}
             sortOption={sortOption}
             onSortChange={setSortOption}
-            onToggleFavoriteFilter={() =>
-              setFilters((prev) => ({ ...prev, favoriteOnly: !prev.favoriteOnly }))
-            }
-            onTogglePinnedFilter={() =>
-              setFilters((prev) => ({ ...prev, pinnedOnly: !prev.pinnedOnly }))
-            }
             totalFilteredCount={filteredAndSortedTrips.length}
           />
 
@@ -283,7 +313,7 @@ export const TripsPage: React.FC = () => {
                   ? 'All Journeys'
                   : `${filters.status.charAt(0).toUpperCase() + filters.status.slice(1)} Journeys`}
                 <span className="text-xs font-semibold text-[#8C9B95] ml-2">
-                  ({filteredAndSortedTrips.length})
+                  ({journeyTrips.length})
                 </span>
               </h2>
 
@@ -297,10 +327,24 @@ export const TripsPage: React.FC = () => {
             {/* Skeleton Loading State */}
             {isLoading ? (
               <TripCardSkeleton viewMode={viewMode} count={6} />
+            ) : fetchError && trips.length === 0 ? (
+              <div className="text-center py-16 px-6 bg-white rounded-3xl border border-[#EAE6DD] shadow-2xs max-w-2xl mx-auto my-8">
+                <h3 className="text-xl font-extrabold text-[#17201D] tracking-tight">
+                  We couldn&apos;t load your journeys
+                </h3>
+                <p className="text-sm text-[#556960] mt-2">{fetchError}</p>
+                <button
+                  type="button"
+                  onClick={loadTrips}
+                  className="mt-6 px-5 py-2.5 rounded-xl bg-[#17201D] text-white text-sm font-bold hover:bg-[#FF6B4A] transition-colors cursor-pointer"
+                >
+                  Try Again
+                </button>
+              </div>
             ) : trips.length === 0 ? (
               /* Case A: Zero trips in total */
               <EmptyTripsState type="zero_trips" />
-            ) : filteredAndSortedTrips.length === 0 ? (
+            ) : journeyTrips.length === 0 ? (
               /* Case B: Filters or search yielded no results */
               <EmptyTripsState
                 type={searchQuery ? 'no_search_results' : 'no_status_results'}
@@ -311,7 +355,7 @@ export const TripsPage: React.FC = () => {
             ) : viewMode === 'grid' ? (
               /* Grid Layout */
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredAndSortedTrips.map((trip) => (
+                {visibleJourneyTrips.map((trip) => (
                   <TripCard
                     key={trip.id}
                     trip={trip}
@@ -327,14 +371,27 @@ export const TripsPage: React.FC = () => {
             ) : (
               /* List Layout */
               <TripListView
-                trips={filteredAndSortedTrips}
+                trips={visibleJourneyTrips}
                 onEdit={(t) => setEditingTrip(t)}
                 onDuplicate={(t) => setDuplicatingTrip(t)}
                 onDelete={(t) => setDeletingTrip(t)}
                 onToggleFavorite={handleToggleFavorite}
                 onTogglePin={handleTogglePin}
-                onOpenSummary={(t) => setSummaryTrip(t)}
               />
+            )}
+
+            {journeyTrips.length > 4 && (
+              <div className="flex justify-center pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAllJourneys((previous) => !previous)}
+                  className="inline-flex items-center gap-2 rounded-full border border-[#EAE6DD] bg-white px-4 py-2.5 text-xs font-bold text-[#556960] shadow-2xs transition-colors hover:border-[#FF6B4A] hover:text-[#FF6B4A] cursor-pointer"
+                  aria-expanded={showAllJourneys}
+                >
+                  <span>{showAllJourneys ? 'Show fewer journeys' : `View all ${journeyTrips.length} journeys`}</span>
+                  {showAllJourneys ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </button>
+              </div>
             )}
           </section>
         </main>

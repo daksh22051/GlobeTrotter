@@ -1,4 +1,5 @@
 import React from 'react';
+import { motion } from 'motion/react';
 import {
   Calendar as CalendarIcon,
   Clock,
@@ -48,14 +49,20 @@ export const DayDetailsPanel: React.FC<DayDetailsPanelProps> = ({
 }) => {
   const activities = (day.activities || []).filter((a) => a.status !== 'Unscheduled');
 
-  const getHealthBadge = (status: string) => {
+  const getHealthBadge = (status: string, conflictCount: number) => {
+    if (conflictCount > 0) {
+      return status === 'Overloaded'
+        ? 'bg-[#FFEAE5] text-[#D9534F] border-[#FF6B4A]/30'
+        : 'bg-[#FFF3D6] text-[#D97706] border-[#FDE68A]';
+    }
+
     switch (status) {
       case 'Excellent':
         return 'bg-[#E8F8F5] text-[#20B8A6] border-[#20B8A6]/30';
       case 'Busy':
-        return 'bg-[#FFF3D6] text-[#D97706] border-[#FDE68A]';
+        return 'bg-[#EBF5FB] text-[#2E86DE] border-[#BDC3C7]';
       case 'Overloaded':
-        return 'bg-[#FFEAE5] text-[#D9534F] border-[#FF6B4A]/30';
+        return 'bg-[#EBF5FB] text-[#2E86DE] border-[#BDC3C7]';
       case 'Balanced':
       default:
         return 'bg-[#EBF5FB] text-[#2E86DE] border-[#BDC3C7]';
@@ -63,7 +70,12 @@ export const DayDetailsPanel: React.FC<DayDetailsPanelProps> = ({
   };
 
   return (
-    <div className="bg-[#FFFDF8] rounded-3xl border border-[#EAE6DD] p-5 shadow-2xs space-y-4">
+    <motion.div
+      initial={{ opacity: 0, x: 12 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.3, ease: 'easeOut' }}
+      className="bg-white/85 backdrop-blur-xl rounded-3xl border border-white/80 p-5 shadow-[0_18px_45px_rgba(23,32,29,0.09)] space-y-4"
+    >
       {/* Header Info */}
       <div className="flex items-start justify-between gap-3 pb-3 border-b border-[#EAE6DD]">
         <div>
@@ -83,7 +95,8 @@ export const DayDetailsPanel: React.FC<DayDetailsPanelProps> = ({
         {/* Health Badge */}
         <div
           className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black border ${getHealthBadge(
-            health.status
+            health.status,
+            health.conflictCount
           )}`}
         >
           <HeartPulse className="w-3.5 h-3.5" />
@@ -93,19 +106,19 @@ export const DayDetailsPanel: React.FC<DayDetailsPanelProps> = ({
 
       {/* Metrics Row */}
       <div className="grid grid-cols-3 gap-2 text-center">
-        <div className="p-2.5 rounded-2xl bg-[#FAF7EE] border border-[#EAE6DD]">
+        <div className="p-2.5 rounded-2xl bg-[#FFF8ED] border border-[#FFE4C4]">
           <span className="text-[10px] text-[#838F8B] font-bold block uppercase">Activities</span>
           <span className="text-sm font-black text-[#17201D]">{activities.length}</span>
         </div>
 
-        <div className="p-2.5 rounded-2xl bg-[#FAF7EE] border border-[#EAE6DD]">
+        <div className="p-2.5 rounded-2xl bg-[#E8F8F5] border border-[#BFEDE5]">
           <span className="text-[10px] text-[#838F8B] font-bold block uppercase">Travel</span>
           <span className="text-sm font-black text-[#17201D]">
             {formatTravelTime(health.totalTravelMinutes)}
           </span>
         </div>
 
-        <div className="p-2.5 rounded-2xl bg-[#FAF7EE] border border-[#EAE6DD]">
+        <div className="p-2.5 rounded-2xl bg-[#EFF6FF] border border-[#CFE1F8]">
           <span className="text-[10px] text-[#838F8B] font-bold block uppercase">Est. Cost</span>
           <span className="text-sm font-black text-[#17201D]">
             {formatCurrency(health.totalCost, currency)}
@@ -115,24 +128,28 @@ export const DayDetailsPanel: React.FC<DayDetailsPanelProps> = ({
 
       {/* Primary Actions */}
       <div className="flex items-center gap-2 pt-1">
-        <button
+        <motion.button
           type="button"
           onClick={() => onAddActivity(day.dayNumber)}
+          whileHover={{ scale: 1.03, y: -1 }}
+          whileTap={{ scale: 0.96 }}
           className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-[#17201D] text-white hover:bg-[#2A3833] text-xs font-bold transition-all shadow-2xs cursor-pointer"
         >
           <Plus className="w-3.5 h-3.5 text-[#FF6B4A]" />
           <span>Add Activity</span>
-        </button>
+        </motion.button>
 
-        <button
+        <motion.button
           type="button"
           onClick={() => onViewOnMap()}
+          whileHover={{ scale: 1.03, y: -1 }}
+          whileTap={{ scale: 0.96 }}
           className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-[#EAE6DD] text-[#17201D] hover:border-[#17201D] text-xs font-bold transition-all shadow-2xs cursor-pointer"
           title="View Day on Map"
         >
           <MapIcon className="w-3.5 h-3.5 text-[#FF6B4A]" />
           <span>View on Map</span>
-        </button>
+        </motion.button>
       </div>
 
       {/* Day's Activities List */}
@@ -202,6 +219,6 @@ export const DayDetailsPanel: React.FC<DayDetailsPanelProps> = ({
           </div>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 };

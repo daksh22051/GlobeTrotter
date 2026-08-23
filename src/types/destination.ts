@@ -20,4 +20,11 @@ export interface Destination {
   highlights?: string[];
   matchScore?: number;
   matchReason?: string;
+  isDomestic?: boolean;
+  coordinates?: {
+    latitude: number;
+    longitude: number;
+  };
+  costIndex?: 'Budget' | 'Mid-range' | 'Luxury';
 }
+

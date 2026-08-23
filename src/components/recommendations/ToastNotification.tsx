@@ -15,14 +15,16 @@ export const ToastNotification: React.FC<ToastNotificationProps> = ({
   onClose,
 }) => {
   const prefersReducedMotion = useReducedMotion();
+  const onCloseRef = React.useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!message) return;
     const timer = setTimeout(() => {
-      onClose();
+      onCloseRef.current();
     }, 2800);
     return () => clearTimeout(timer);
-  }, [message, onClose]);
+  }, [message]);
 
   if (!message) return null;
 

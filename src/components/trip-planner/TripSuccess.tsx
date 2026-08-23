@@ -1,31 +1,25 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, ArrowRight, Compass, Calendar, Users, MapPin, CheckCircle2, Home } from 'lucide-react';
+import { ArrowRight, Compass, Calendar, Users, MapPin, CheckCircle2, Home } from 'lucide-react';
 import { Trip } from '../../types/trip';
+import { TripRecommendations } from '../../types/recommendation';
 import { formatCurrency } from '../../utils/currency';
+import { TripCoverImage } from '../trips/TripCoverImage';
 import { motion } from 'motion/react';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 interface TripSuccessProps {
   trip: Trip;
+  recommendations: TripRecommendations;
+  onBuildAIItinerary: () => void;
 }
 
-export const TripSuccess: React.FC<TripSuccessProps> = ({ trip }) => {
+export const TripSuccess: React.FC<TripSuccessProps> = ({ trip, recommendations, onBuildAIItinerary }) => {
   const navigate = useNavigate();
   const prefersReducedMotion = useReducedMotion();
 
   return (
     <div className="w-full max-w-2xl mx-auto text-center py-6 sm:py-10 px-4 select-none">
-      {/* Celebration Icon Halo */}
-      <motion.div
-        initial={prefersReducedMotion ? false : { scale: 0.8, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{ duration: 0.4, ease: 'easeOut' }}
-        className="w-20 h-20 mx-auto rounded-3xl bg-gradient-to-tr from-[#FF6B4A] to-[#FF937B] text-white flex items-center justify-center shadow-lg shadow-[#FF6B4A]/30 mb-6"
-      >
-        <Sparkles className="w-10 h-10" />
-      </motion.div>
-
       {/* Pill Badge */}
       <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-[#DDF7F2] text-[#179E8E] text-xs font-extrabold border border-[#20B8A6]/20 mb-3">
         <CheckCircle2 className="w-3.5 h-3.5" />
@@ -44,10 +38,12 @@ export const TripSuccess: React.FC<TripSuccessProps> = ({ trip }) => {
       <div className="bg-white rounded-3xl overflow-hidden border border-[#EAE6DD] shadow-sm text-left mb-8 max-w-lg mx-auto">
         {/* Cover Photo */}
         <div className="relative h-44 bg-[#F4F1EA]">
-          <img
+          <TripCoverImage
             src={trip.coverImage}
+            destination={trip.destination}
+            tripName={trip.name}
             alt={trip.name}
-            className="w-full h-full object-cover"
+            imageClassName="w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
           <div className="absolute bottom-3 left-4 right-4 text-white">
@@ -96,27 +92,47 @@ export const TripSuccess: React.FC<TripSuccessProps> = ({ trip }) => {
         </div>
       </div>
 
+      <div className="max-w-lg mx-auto mb-8 text-left">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#FF6B4A]">AI destination brief</p>
+            <h2 className="text-lg font-black text-[#17201D] mt-1">A strong first draft for {trip.destination}</h2>
+          </div>
+          <span className="text-[10px] font-bold text-[#68736F]">{recommendations.allRecommendations.length} picks</span>
+        </div>
+        <p className="text-xs text-[#5E6B67] leading-relaxed mb-4">{recommendations.destinationSummary}</p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {[
+            { label: 'Stays', items: recommendations.hotels, color: '#20B8A6' },
+            { label: 'Dining', items: recommendations.food, color: '#F59E0B' },
+            { label: 'Sights', items: recommendations.places, color: '#FF6B4A' },
+          ].map((group) => (
+            <div key={group.label} className="bg-white rounded-2xl border border-[#EAE6DD] p-3 shadow-2xs">
+              <div className="flex items-center gap-1.5 mb-2">
+                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: group.color }} />
+                <span className="text-[10px] font-black uppercase tracking-wider text-[#68736F]">{group.label}</span>
+              </div>
+              <div className="space-y-1.5">
+                {group.items.slice(0, 2).map((item) => (
+                  <p key={item.id} className="text-xs font-bold text-[#17201D] truncate" title={item.name}>{item.name}</p>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* Action Buttons */}
       <div className="max-w-md mx-auto space-y-3">
-        {/* Primary CTA: AI Recommendations */}
+        {/* Primary CTA: Build AI Itinerary */}
         <button
           type="button"
-          onClick={() => navigate(`/trip/${trip.id}/recommendations`)}
+          onClick={onBuildAIItinerary}
           className="w-full py-4 px-6 rounded-full bg-[#FF6B4A] hover:bg-[#E55837] text-white font-extrabold text-sm sm:text-base shadow-md shadow-[#FF6B4A]/25 hover:shadow-lg hover:shadow-[#FF6B4A]/30 active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer group"
         >
-          <Sparkles className="w-5 h-5 text-white animate-pulse" />
-          <span>Explore AI Recommendations</span>
+          <Compass className="w-5 h-5" />
+          <span>Build AI Itinerary</span>
           <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-        </button>
-
-        {/* Secondary CTA */}
-        <button
-          type="button"
-          onClick={() => navigate(`/trip/${trip.id}/itinerary`)}
-          className="w-full py-3.5 px-6 rounded-full bg-white hover:bg-[#F9F7F1] text-[#17201D] font-extrabold text-sm border border-[#EAE6DD] shadow-2xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
-        >
-          <Compass className="w-4 h-4 text-[#FF6B4A]" />
-          <span>Build Day-by-Day Itinerary</span>
         </button>
 
         {/* Return to Dashboard */}

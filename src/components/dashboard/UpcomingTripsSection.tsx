@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { Trip } from '../../types/trip';
 import { formatCurrency } from '../../utils/currency';
+import { TripCoverImage } from '../trips/TripCoverImage';
 
 interface UpcomingTripsSectionProps {
   trips: Trip[];
@@ -83,22 +84,20 @@ export const UpcomingTripsSection: React.FC<UpcomingTripsSectionProps> = ({ trip
           {trips.map((trip) => (
             <div
               key={trip.id}
-              onClick={() => navigate(`/trip/${trip.id}/recommendations`)}
+              onClick={() => navigate(`/trip/${trip.id}/itinerary`)}
               className="group bg-white rounded-3xl overflow-hidden border border-[#EAE6DD] hover:border-[#FF6B4A]/50 shadow-2xs hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col"
             >
               {/* Trip Image Header */}
               <div className="relative h-40 overflow-hidden bg-[#F4F1EA]">
-                <img
+                <TripCoverImage
                   src={trip.coverImage}
+                  destination={trip.destination}
+                  tripName={trip.name}
                   alt={trip.name}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  imageClassName="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
                 <div className="absolute top-3 right-3 flex items-center gap-1.5">
-                  <span className="px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-[#20B8A6] text-[10px] font-extrabold flex items-center gap-1 border border-white/10">
-                    <Sparkles className="w-2.5 h-2.5" />
-                    <span>AI Plan</span>
-                  </span>
                   <span className="px-2.5 py-1 rounded-full bg-white/90 backdrop-blur-xs text-[#17201D] text-[10px] font-extrabold uppercase tracking-wider">
                     {trip.status}
                   </span>

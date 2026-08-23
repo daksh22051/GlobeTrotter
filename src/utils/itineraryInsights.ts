@@ -114,6 +114,21 @@ export function generateItineraryInsights(
     });
   }
 
+  // 6. Repetitive Content Detection
+  const allTitles = itinerary.days.flatMap(d => (d.activities || []).map(a => a.title.toLowerCase().trim()));
+  if (allTitles.length >= 3) {
+    const uniqueTitles = new Set(allTitles);
+    if (uniqueTitles.size / allTitles.length < 0.7) {
+      insights.unshift({
+        id: 'repetitive_content_insight',
+        type: 'warning',
+        title: 'Repetitive Content Detected',
+        message: 'Your itinerary contains generic or repeated activity names. Run AI Optimize to regenerate unique, destination-specific stops.',
+        badgeText: 'Content Refresh',
+      });
+    }
+  }
+
   // Default fallbacks if clean
   if (insights.length === 0) {
     insights.push({

@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { MapMarkerLocation } from '../../types/map';
 import { MAP_CONFIG, getDayColor } from '../../config/mapConfig';
+import { getActivityImage, handleActivityImageError } from '../../utils/activityImage';
 
 interface LocationDetailsDrawerProps {
   marker: MapMarkerLocation | null;
@@ -49,18 +50,13 @@ export const LocationDetailsDrawer: React.FC<LocationDetailsDrawerProps> = ({
       <div className="fixed right-0 top-0 bottom-0 w-full sm:max-w-md bg-[#FFFDF8] border-l border-[#EAE6DD] shadow-2xl z-50 flex flex-col overflow-hidden animate-in slide-in-from-right duration-300">
         {/* Header Image & Close */}
         <div className="relative h-56 w-full bg-[#17201D] shrink-0">
-          {marker.image ? (
-            <img
-              src={marker.image}
-              alt={marker.name}
-              className="w-full h-full object-cover"
-              referrerPolicy="no-referrer"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-4xl bg-[#F4F1EA]">
-              {category.emoji}
-            </div>
-          )}
+          <img
+            src={getActivityImage(marker)}
+            alt={marker.name}
+            className="w-full h-full object-cover"
+            referrerPolicy="no-referrer"
+            onError={(event) => handleActivityImageError(event, marker.category)}
+          />
 
           {/* Gradient overlay */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />

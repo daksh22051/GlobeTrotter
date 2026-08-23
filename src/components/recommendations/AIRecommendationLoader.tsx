@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Sparkles, Check, Compass } from 'lucide-react';
+import React, { useEffect, useState, useRef } from 'react';
+import { Check, Compass } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 
@@ -30,6 +30,8 @@ export const AIRecommendationLoader: React.FC<AIRecommendationLoaderProps> = ({
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [isDone, setIsDone] = useState<boolean>(false);
   const prefersReducedMotion = useReducedMotion();
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
 
   useEffect(() => {
     // Step timing intervals for snappy UX (approx 350ms per step)
@@ -43,7 +45,7 @@ export const AIRecommendationLoader: React.FC<AIRecommendationLoaderProps> = ({
           clearInterval(interval);
           setIsDone(true);
           setTimeout(() => {
-            onComplete?.();
+            onCompleteRef.current?.();
           }, 450);
           return prev;
         }
@@ -51,7 +53,7 @@ export const AIRecommendationLoader: React.FC<AIRecommendationLoaderProps> = ({
     }, stepDuration);
 
     return () => clearInterval(interval);
-  }, [onComplete]);
+  }, []);
 
   return (
     <div className="w-full max-w-xl mx-auto my-12 p-8 sm:p-10 bg-white rounded-3xl border border-[#EAE6DD] shadow-sm text-center select-none">
@@ -61,7 +63,7 @@ export const AIRecommendationLoader: React.FC<AIRecommendationLoaderProps> = ({
         transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
         className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-gradient-to-tr from-[#FF6B4A] to-[#FF937B] text-white flex items-center justify-center shadow-md shadow-[#FF6B4A]/25"
       >
-        <Sparkles className="w-8 h-8" />
+        <Compass className="w-8 h-8" />
       </motion.div>
 
       {/* Main Title */}
@@ -119,7 +121,7 @@ export const AIRecommendationLoader: React.FC<AIRecommendationLoaderProps> = ({
       </div>
 
       {/* Progress Bar */}
-      <div className="w-full bg-[#F4F1EA] h-2 rounded-full overflow-hidden">
+      <div className="w-full bg-[#F4F1EA] h-2 rounded-full overflow-hidden mb-6">
         <motion.div
           className="h-full bg-gradient-to-r from-[#FF6B4A] to-[#20B8A6]"
           initial={{ width: '10%' }}
@@ -129,6 +131,19 @@ export const AIRecommendationLoader: React.FC<AIRecommendationLoaderProps> = ({
           transition={{ duration: 0.3 }}
         />
       </div>
+
+      {/* Continue Action Button (Ensures user is never stuck) */}
+      {isDone && (
+        <motion.button
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          onClick={() => onCompleteRef.current?.()}
+          className="w-full py-3.5 px-6 rounded-2xl bg-[#FF6B4A] hover:bg-[#E55837] text-white font-extrabold text-sm shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
+        >
+          <span>Open Destination Brief</span>
+          <Compass className="w-4 h-4" />
+        </motion.button>
+      )}
     </div>
   );
 };

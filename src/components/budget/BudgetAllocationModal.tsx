@@ -46,7 +46,10 @@ export const BudgetAllocationModal: React.FC<BudgetAllocationModalProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setAllocations({ ...currentAllocations });
+    if (!isOpen) return;
+    if (currentAllocations) {
+      setAllocations({ ...currentAllocations });
+    }
     setError(null);
   }, [currentAllocations, isOpen]);
 

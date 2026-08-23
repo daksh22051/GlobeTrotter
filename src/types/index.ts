@@ -8,6 +8,9 @@ export interface User {
   email: string;
   avatarUrl?: string;
   preferredCurrency?: string;
+  bio?: string;
+  memberSince?: string;
+  languagePreference?: string;
 }
 
 export interface TravelRoutePoint {
@@ -33,3 +36,7 @@ export * from './destination';
 export * from './trip';
 export * from './itinerary';
 export * from './budget';
+export * from './recommendation';
+export * from './sharing';
+export * from './travelGuide';
+

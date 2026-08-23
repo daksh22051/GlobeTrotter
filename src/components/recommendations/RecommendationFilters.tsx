@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, X, Sparkles, MapPin, Building2, Utensils, Compass, ArrowUpDown } from 'lucide-react';
+import { Search, X, MapPin, Building2, Utensils, Compass, ArrowUpDown } from 'lucide-react';
 import { RecommendationCategory } from '../../types/recommendation';
 
 export type FilterCategory = 'all' | RecommendationCategory;
@@ -31,7 +31,7 @@ export const RecommendationFilters: React.FC<RecommendationFiltersProps> = ({
   counts,
 }) => {
   const categoryTabs: { id: FilterCategory; label: string; icon: React.ReactNode; count: number }[] = [
-    { id: 'all', label: 'All Curations', icon: <Sparkles className="w-3.5 h-3.5" />, count: counts.all },
+    { id: 'all', label: 'All Curations', icon: <MapPin className="w-3.5 h-3.5" />, count: counts.all },
     { id: 'place', label: 'Places to Visit', icon: <MapPin className="w-3.5 h-3.5" />, count: counts.place },
     { id: 'hotel', label: 'Stays & Hotels', icon: <Building2 className="w-3.5 h-3.5" />, count: counts.hotel },
     { id: 'food', label: 'Food & Dining', icon: <Utensils className="w-3.5 h-3.5" />, count: counts.food },

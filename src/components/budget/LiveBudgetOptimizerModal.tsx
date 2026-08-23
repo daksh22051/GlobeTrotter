@@ -97,7 +97,7 @@ export const LiveBudgetOptimizerModal: React.FC<LiveBudgetOptimizerModalProps> =
     return () => {
       clearInterval(interval);
     };
-  }, [isOpen, trip, itinerary, expenses, allocations]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 

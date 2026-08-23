@@ -17,17 +17,20 @@ interface DestinationSearchProps {
   placeholder?: string;
 }
 
+const DEFAULT_DESTINATION_PLACEHOLDER = 'Search a city or country (e.g. Tokyo, Bali, Paris)';
+
 export const DestinationSearch: React.FC<DestinationSearchProps> = ({
   value,
   country,
   imageUrl,
   onSelect,
   error,
-  placeholder = 'Search a city or country (e.g. Tokyo, Bali, Paris)',
+  placeholder,
 }) => {
   const [searchTerm, setSearchTerm] = useState(value ? (country ? `${value}, ${country}` : value) : '');
   const [isOpen, setIsOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState<number>(-1);
+  const [destinationScope, setDestinationScope] = useState<'domestic' | 'international'>('domestic');
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -35,6 +38,9 @@ export const DestinationSearch: React.FC<DestinationSearchProps> = ({
   useEffect(() => {
     if (value) {
       setSearchTerm(country ? `${value}, ${country}` : value);
+      if (country) {
+        setDestinationScope(country.toLowerCase() === 'india' ? 'domestic' : 'international');
+      }
     }
   }, [value, country]);
 
@@ -50,17 +56,26 @@ export const DestinationSearch: React.FC<DestinationSearchProps> = ({
   }, []);
 
   // Filter destinations from dataset
-  const filteredDestinations = searchTerm.trim()
-    ? FEATURED_DESTINATIONS.filter((d) => {
-        const query = searchTerm.toLowerCase().trim();
+  const scopedDestinations = FEATURED_DESTINATIONS.filter((destination) =>
+    destination.isDomestic === (destinationScope === 'domestic')
+  );
+  const searchQuery = searchTerm.split(',')[0].toLowerCase().trim();
+  const scopePlaceholder = destinationScope === 'domestic'
+    ? 'e.g. Manali, Goa, Jaipur, Udaipur'
+    : 'e.g. Paris, Tokyo, Bali, London';
+  const inputPlaceholder = placeholder && placeholder !== DEFAULT_DESTINATION_PLACEHOLDER
+    ? placeholder
+    : scopePlaceholder;
+  const filteredDestinations = searchQuery
+    ? scopedDestinations.filter((d) => {
         return (
-          d.name.toLowerCase().includes(query) ||
-          d.country.toLowerCase().includes(query) ||
-          d.region?.toLowerCase().includes(query) ||
-          d.tags.some((t) => t.toLowerCase().includes(query))
+          d.name.toLowerCase().includes(searchQuery) ||
+          d.country.toLowerCase().includes(searchQuery) ||
+          d.region?.toLowerCase().includes(searchQuery) ||
+          d.tags.some((t) => t.toLowerCase().includes(searchQuery))
         );
       })
-    : FEATURED_DESTINATIONS.slice(0, 6);
+    : scopedDestinations.slice(0, 6);
 
   const handleSelectDestination = (dest: Destination) => {
     setSearchTerm(`${dest.name}, ${dest.country}`);
@@ -131,6 +146,27 @@ export const DestinationSearch: React.FC<DestinationSearchProps> = ({
         Destination <span className="text-[#FF6B4A]">*</span>
       </label>
 
+      <div className="flex items-center gap-1 p-1 mb-2 rounded-xl bg-[#F4F1EA] border border-[#EAE6DD]">
+        {(['domestic', 'international'] as const).map((scope) => (
+          <button
+            key={scope}
+            type="button"
+            onClick={() => {
+              setDestinationScope(scope);
+              setHighlightedIndex(0);
+              setIsOpen(true);
+            }}
+            className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              destinationScope === scope
+                ? 'bg-white text-[#17201D] shadow-xs'
+                : 'text-[#68736F] hover:text-[#17201D]'
+            }`}
+          >
+            {scope === 'domestic' ? 'Domestic (India)' : 'International'}
+          </button>
+        ))}
+      </div>
+
       {/* Input container */}
       <div className="relative">
         <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#98A29F]">
@@ -149,7 +185,7 @@ export const DestinationSearch: React.FC<DestinationSearchProps> = ({
           }}
           onFocus={() => setIsOpen(true)}
           onKeyDown={handleKeyDown}
-          placeholder={placeholder}
+          placeholder={inputPlaceholder}
           aria-autocomplete="list"
           aria-expanded={isOpen}
           aria-haspopup="listbox"

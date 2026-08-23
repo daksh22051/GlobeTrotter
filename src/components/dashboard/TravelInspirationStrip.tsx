@@ -90,11 +90,11 @@ export const TravelInspirationStrip: React.FC = () => {
         {INSPIRATION_TILES.map((tile) => (
           <div
             key={tile.id}
-            onClick={() => navigate('/explore')}
+            onClick={() => navigate(`/explore?vibe=${encodeURIComponent(tile.id)}`)}
             className="group relative rounded-3xl overflow-hidden aspect-[4/5] sm:aspect-auto sm:h-72 border border-[#EAE6DD] shadow-2xs hover:shadow-lg transition-all duration-300 cursor-pointer flex flex-col justify-end p-4 text-white"
             role="button"
             tabIndex={0}
-            onKeyDown={(e) => e.key === 'Enter' && navigate('/explore')}
+            onKeyDown={(e) => e.key === 'Enter' && navigate(`/explore?vibe=${encodeURIComponent(tile.id)}`)}
             aria-label={`Explore ${tile.title}`}
           >
             {/* Background Image */}

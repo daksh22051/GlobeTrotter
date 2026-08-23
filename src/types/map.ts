@@ -84,3 +84,15 @@ export interface UserCurrentLocation extends Coordinates {
   accuracy?: number;
   timestamp?: number;
 }
+
+export type MapCategoryFilter = 'all' | 'hotel' | 'place' | 'food' | 'experience';
+export type RouteDisplayMode = 'active_day' | 'all_days' | 'none';
+
+export interface MapClusterGroup {
+  id: string;
+  latitude: number;
+  longitude: number;
+  items: MapMarkerLocation[];
+  primaryCategory: ActivityCategory;
+  dayNumbers: number[];
+}

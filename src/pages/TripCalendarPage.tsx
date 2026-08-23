@@ -23,9 +23,10 @@ import {
 import { Recommendation, RecommendationCategory } from '../types/recommendation';
 import { tripService } from '../services/tripService';
 import { itineraryService, recommendationToActivity } from '../services/itineraryService';
-import { calculateDayHealth } from '../utils/dayHealthCalculator';
+import { calculateDayHealth, normalizeItinerarySchedule } from '../utils/dayHealthCalculator';
 import { detectDayConflicts } from '../utils/itineraryConflictDetector';
 import { itineraryAIService } from '../services/itineraryAIService';
+import { buildTripRecommendations } from '../utils/recommendationMatcher';
 import { mockRecommendations } from '../data/mockRecommendations';
 
 // Subcomponents
@@ -39,8 +40,9 @@ import { TripTimeline } from '../components/trip-calendar/TripTimeline';
 import { TripMonthCalendar } from '../components/trip-calendar/TripMonthCalendar';
 import { DayDetailsPanel } from '../components/trip-calendar/DayDetailsPanel';
 import { ScheduleEditorModal } from '../components/trip-calendar/ScheduleEditorModal';
-import { ExportTripModal } from '../components/trip-calendar/ExportTripModal';
 import { ShareTripModal } from '../components/trip-calendar/ShareTripModal';
+import { PreWeddingScheduleView } from '../components/trip-calendar/PreWeddingScheduleView';
+import { PreWeddingCalendarView } from '../components/trip-calendar/PreWeddingCalendarView';
 
 // Shared Itinerary Modals from Feature 8
 import { ActivityEditorModal } from '../components/itinerary/ActivityEditorModal';
@@ -49,7 +51,11 @@ import { DeleteConfirmationModal } from '../components/itinerary/DeleteConfirmat
 import { RecommendationDrawer } from '../components/itinerary/RecommendationDrawer';
 import { AIOptimizeModal } from '../components/itinerary/AIOptimizeModal';
 
-export const TripCalendarPage: React.FC = () => {
+interface TripCalendarPageProps {
+  mode: 'timeline' | 'calendar';
+}
+
+export const TripCalendarPage: React.FC<TripCalendarPageProps> = ({ mode }) => {
   const { tripId } = useParams<{ tripId: string }>();
   const navigate = useNavigate();
 
@@ -70,8 +76,9 @@ export const TripCalendarPage: React.FC = () => {
   } | null>(null);
 
   // View Mode & Navigation
-  const [viewMode, setViewMode] = useState<'timeline' | 'calendar'>('timeline');
+  const [viewMode, setViewMode] = useState<'timeline' | 'calendar'>(mode);
   const [selectedDayNumber, setSelectedDayNumber] = useState<number>(1);
+  const [scheduleType, setScheduleType] = useState<'travel' | 'pre_wedding'>('travel');
 
   // Filters & Search
   const [searchQuery, setSearchQuery] = useState('');
@@ -94,8 +101,7 @@ export const TripCalendarPage: React.FC = () => {
   const [optimizeStepIndex, setOptimizeStepIndex] = useState(0);
   const [optimizationResult, setOptimizationResult] = useState<OptimizationResult | null>(null);
 
-  // Export & Share Modals
-  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  // Share Modal
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
   // 1. Initial Load
@@ -111,8 +117,9 @@ export const TripCalendarPage: React.FC = () => {
     }
 
     setTrip(foundTrip);
-    const loadedItinerary = itineraryService.getItinerary(tripId, foundTrip);
+    const loadedItinerary = normalizeItinerarySchedule(itineraryService.getItinerary(tripId, foundTrip));
     setItinerary(loadedItinerary);
+    itineraryService.saveItinerary(loadedItinerary, foundTrip.userId);
     setIsLoading(false);
   }, [tripId]);
 
@@ -126,6 +133,10 @@ export const TripCalendarPage: React.FC = () => {
     setTimeout(() => {
       setToastMessage((prev) => (prev?.text === text ? null : prev));
     }, 4000);
+  };
+
+  const handlePrint = () => {
+    window.print();
   };
 
   // Undo Handler
@@ -187,6 +198,12 @@ export const TripCalendarPage: React.FC = () => {
     });
     return ids;
   }, [itinerary]);
+
+  const allRecommendationsList = useMemo(() => {
+    if (!trip) return mockRecommendations;
+    const recs = buildTripRecommendations(trip);
+    return recs.allRecommendations;
+  }, [trip]);
 
   // Handler: Add Activity / Open Drawer
   const handleOpenAddActivity = (dayNumber: number, suggestedStartTime?: string) => {
@@ -330,7 +347,7 @@ export const TripCalendarPage: React.FC = () => {
   const handleApplyOptimization = () => {
     if (!optimizationResult || !tripId) return;
     commitItineraryChanges(
-      optimizationResult.optimizedItinerary,
+      optimizationResult.itinerary,
       'Trip schedule successfully optimized ✨'
     );
     setIsOptimizeModalOpen(false);
@@ -377,28 +394,18 @@ export const TripCalendarPage: React.FC = () => {
 
   const selectedDay =
     itinerary.days.find((d) => d.dayNumber === selectedDayNumber) || itinerary.days[0];
-  const selectedDayHealth =
-    dayHealths[selectedDay.dayNumber] || {
-      dayNumber: selectedDay.dayNumber,
-      score: 90,
-      status: 'Balanced',
-      totalActivities: 0,
-      totalCost: 0,
-      totalTravelMinutes: 0,
-      freeTimeMinutes: 0,
-      conflictCount: 0,
-      reasons: [],
-    };
+  const selectedDayHealth = dayHealths[selectedDay.dayNumber] || calculateDayHealth(selectedDay);
 
   return (
     <div className="min-h-screen bg-[#FAF7EE] text-[#17201D] flex flex-col antialiased">
       {/* 1. Header with View Switcher, Optimize CTA & Actions */}
       <TripCalendarHeader
         trip={trip}
+        showViewSwitcher={false}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
         onOptimizeClick={() => handleStartScheduleOptimization()}
-        onExportClick={() => setIsExportModalOpen(true)}
+        onExportClick={handlePrint}
         onShareClick={() => setIsShareModalOpen(true)}
         isSaving={isSaving}
         lastSavedAt={lastSavedAt}
@@ -407,39 +414,61 @@ export const TripCalendarPage: React.FC = () => {
       />
 
       {/* 2. Trip Summary Bar & Density Strip */}
-      <TripSummaryBar
-        trip={trip}
-        itinerary={itinerary}
-        dayHealths={dayHealths}
-        selectedDayNumber={selectedDayNumber}
-        onSelectDay={(dayNum) => {
-          setSelectedDayNumber(dayNum);
-          if (viewMode === 'timeline') {
+      {mode === 'timeline' && scheduleType === 'travel' && (
+        <TripSummaryBar
+          trip={trip}
+          itinerary={itinerary}
+          dayHealths={dayHealths}
+          selectedDayNumber={selectedDayNumber}
+          onSelectDay={(dayNum) => {
+            setSelectedDayNumber(dayNum);
             const el = document.getElementById(`timeline-day-${dayNum}`);
             if (el) {
               el.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
-          }
-        }}
-        onOptimizeDay={handleStartScheduleOptimization}
-      />
+          }}
+          onOptimizeDay={handleStartScheduleOptimization}
+        />
+      )}
 
       {/* 3. Search & Category Filters Bar */}
-      <TimelineFilters
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        selectedFilter={selectedFilter}
-        onFilterChange={setSelectedFilter}
-        conflictCount={totalConflictCount}
-        onClearFilters={() => {
-          setSearchQuery('');
-          setSelectedFilter('all');
-        }}
-      />
+      <div className="border-b border-[#EAE6DD] bg-white px-4 py-3 sm:px-6 lg:px-8">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-wider text-[#68736F]">Schedule view</p>
+            <p className="mt-0.5 text-xs text-[#8C9B95]">Switch without changing your saved itinerary</p>
+          </div>
+          <div className="inline-flex rounded-xl border border-[#EAE6DD] bg-[#F9F7F1] p-1">
+            <button type="button" onClick={() => setScheduleType('travel')} className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${scheduleType === 'travel' ? 'bg-white text-[#17201D] shadow-2xs' : 'text-[#68736F]'}`}>Travel itinerary</button>
+            <button type="button" onClick={() => setScheduleType('pre_wedding')} className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${scheduleType === 'pre_wedding' ? 'bg-[#FFEAE5] text-[#B85C48] shadow-2xs' : 'text-[#68736F]'}`}>Pre-wedding shoot</button>
+          </div>
+        </div>
+      </div>
+
+      {mode === 'timeline' && scheduleType === 'travel' && (
+        <TimelineFilters
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          selectedFilter={selectedFilter}
+          onFilterChange={setSelectedFilter}
+          conflictCount={totalConflictCount}
+          onClearFilters={() => {
+            setSearchQuery('');
+            setSelectedFilter('all');
+          }}
+        />
+      )}
 
       {/* 4. Main Body Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {viewMode === 'timeline' ? (
+        {scheduleType === 'pre_wedding' ? (
+          <PreWeddingCalendarView
+            trip={trip}
+            itinerary={itinerary}
+            selectedDayNumber={selectedDayNumber}
+            onSelectDay={setSelectedDayNumber}
+          />
+        ) : mode === 'timeline' ? (
           /* TIMELINE VIEW */
           <div className="max-w-4xl mx-auto">
             <TripTimeline
@@ -541,7 +570,7 @@ export const TripCalendarPage: React.FC = () => {
         onClose={() => setIsRecommendationDrawerOpen(false)}
         targetDayNumber={drawerTargetDay}
         savedRecommendations={[]}
-        allRecommendations={mockRecommendations}
+        allRecommendations={allRecommendationsList}
         addedActivityRecommendationIds={addedActivityRecommendationIds}
         onAddRecommendation={handleAddRecommendation}
         currency={trip.currency || 'INR'}
@@ -556,13 +585,6 @@ export const TripCalendarPage: React.FC = () => {
         result={optimizationResult}
         onClose={() => setIsOptimizeModalOpen(false)}
         onApply={handleApplyOptimization}
-      />
-
-      {/* Export & Share Modals */}
-      <ExportTripModal
-        isOpen={isExportModalOpen}
-        trip={trip}
-        onClose={() => setIsExportModalOpen(false)}
       />
 
       <ShareTripModal

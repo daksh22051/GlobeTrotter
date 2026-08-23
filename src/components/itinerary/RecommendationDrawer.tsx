@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   X,
-  Search,
   Bookmark,
   Sparkles,
   Plus,
@@ -17,6 +17,7 @@ import {
 import { Recommendation, RecommendationCategory } from '../../types/recommendation';
 import { ItineraryActivity } from '../../types/itinerary';
 import { mockRecommendations } from '../../data/mockRecommendations';
+import { getActivityImage, handleActivityImageError } from '../../utils/activityImage';
 
 interface RecommendationDrawerProps {
   isOpen: boolean;
@@ -42,17 +43,11 @@ export const RecommendationDrawer: React.FC<RecommendationDrawerProps> = ({
   initialFilter = 'all',
 }) => {
   const [activeTab, setActiveTab] = useState<'saved' | 'recommended' | 'search'>('recommended');
-  const [selectedCategory, setSelectedCategory] = useState<RecommendationCategory | 'all'>(
-    initialFilter
-  );
-  const [searchQuery, setSearchQuery] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<RecommendationCategory | 'all'>(initialFilter);
 
-  // Sync initialFilter if provided
-  React.useEffect(() => {
-    if (initialFilter) {
-      setSelectedCategory(initialFilter);
-    }
-  }, [initialFilter]);
+  useEffect(() => {
+    setCategoryFilter(initialFilter);
+  }, [initialFilter, isOpen]);
 
   // Combine recommendations
   const pool = useMemo(() => {
@@ -64,41 +59,61 @@ export const RecommendationDrawer: React.FC<RecommendationDrawerProps> = ({
     if (activeTab === 'recommended') {
       return allRecommendations.length > 0 ? allRecommendations : mockRecommendations;
     }
-    // Search tab pool
     return allRecommendations.length > 0 ? allRecommendations : mockRecommendations;
   }, [activeTab, savedRecommendations, allRecommendations]);
 
   // Filtered recommendations
   const filteredList = useMemo(() => {
-    return pool.filter((item) => {
-      const matchCategory =
-        selectedCategory === 'all' || item.category === selectedCategory;
-      const matchSearch =
-        searchQuery.trim() === '' ||
-        item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (item.tags || []).some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()));
-
-      return matchCategory && matchSearch;
-    });
-  }, [pool, selectedCategory, searchQuery]);
-
-  if (!isOpen) return null;
+    if (categoryFilter === 'all') return pool;
+    return pool.filter((recommendation) => recommendation.category === categoryFilter);
+  }, [pool, categoryFilter]);
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden flex justify-end">
+    <AnimatePresence>
+      {isOpen && <div className="fixed inset-0 z-50 overflow-hidden flex justify-end">
       {/* Backdrop */}
-      <div
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
         onClick={onClose}
         className="fixed inset-0 bg-[#17201D]/40 backdrop-blur-xs transition-opacity animate-in fade-in"
       />
 
       {/* Drawer Panel */}
-      <div className="relative w-full max-w-md md:max-w-lg bg-[#FFFDF8] h-full shadow-2xl border-l border-[#EAE6DD] flex flex-col z-10 animate-in slide-in-from-right duration-200">
+      <motion.div
+        initial={{ opacity: 0, x: 28 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: 28 }}
+        transition={{ type: 'spring', stiffness: 320, damping: 30 }}
+        className="relative w-full max-w-md md:max-w-lg bg-[#FFFDF8] h-full shadow-2xl border-l border-[#EAE6DD] flex flex-col z-10"
+      >
         {/* Header */}
         <div className="p-5 sm:p-6 border-b border-[#EAE6DD] bg-white">
           <div className="flex items-center justify-between gap-3">
             <div>
+
+            <div className="grid grid-cols-4 gap-1.5 mt-3">
+              {[
+                { id: 'all', label: 'All' },
+                { id: 'hotel', label: 'Hotels' },
+                { id: 'food', label: 'Dining' },
+                { id: 'place', label: 'Sightseeing' },
+              ].map((category) => (
+                <button
+                  key={category.id}
+                  type="button"
+                  onClick={() => setCategoryFilter(category.id as RecommendationCategory | 'all')}
+                  className={`px-2 py-1.5 rounded-xl text-[10px] font-extrabold transition-colors cursor-pointer ${
+                    categoryFilter === category.id
+                      ? 'bg-[#17201D] text-white'
+                      : 'bg-[#FCFBF8] text-[#68736F] border border-[#EAE6DD] hover:text-[#17201D]'
+                  }`}
+                >
+                  {category.label}
+                </button>
+              ))}
+            </div>
               <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#FFF2EE] text-[#FF6B4A] text-[11px] font-black uppercase">
                 <span>DAY {targetDayNumber}</span>
               </div>
@@ -116,7 +131,7 @@ export const RecommendationDrawer: React.FC<RecommendationDrawerProps> = ({
             </button>
           </div>
 
-          {/* Navigation Tabs: Saved | Recommended | Search */}
+          {/* Navigation Tabs: Saved | Recommended */}
           <div className="flex items-center gap-1 p-1 bg-[#F4F1EA] rounded-2xl mt-4 border border-[#EAE6DD]">
             <button
               type="button"
@@ -148,58 +163,6 @@ export const RecommendationDrawer: React.FC<RecommendationDrawerProps> = ({
               </span>
             </button>
 
-            <button
-              type="button"
-              onClick={() => setActiveTab('search')}
-              className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                activeTab === 'search'
-                  ? 'bg-white text-[#17201D] shadow-2xs'
-                  : 'text-[#68736F] hover:text-[#17201D]'
-              }`}
-            >
-              <span className="flex items-center justify-center gap-1.5">
-                <Search className="w-3.5 h-3.5 text-[#5E6B67]" />
-                <span>Search</span>
-              </span>
-            </button>
-          </div>
-
-          {/* Search Input if on Search tab or quick filter */}
-          <div className="relative mt-3">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#838F8B]" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search places, food, experiences..."
-              className="w-full pl-9.5 pr-4 py-2 rounded-xl bg-[#F9F7F1] border border-[#EAE6DD] text-xs sm:text-sm text-[#17201D] placeholder-[#A0AAA6] focus:outline-none focus:border-[#FF6B4A] transition-colors"
-            />
-          </div>
-
-          {/* Category Filter Pills */}
-          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-3">
-            {(
-              [
-                { id: 'all', label: 'All' },
-                { id: 'place', label: 'Places' },
-                { id: 'food', label: 'Food' },
-                { id: 'hotel', label: 'Stays' },
-                { id: 'experience', label: 'Experiences' },
-              ] as const
-            ).map((cat) => (
-              <button
-                key={cat.id}
-                type="button"
-                onClick={() => setSelectedCategory(cat.id as any)}
-                className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 ${
-                  selectedCategory === cat.id
-                    ? 'bg-[#17201D] text-white shadow-2xs'
-                    : 'bg-white border border-[#EAE6DD] text-[#5E6B67] hover:border-[#D0C9B8]'
-                }`}
-              >
-                {cat.label}
-              </button>
-            ))}
           </div>
         </div>
 
@@ -214,12 +177,19 @@ export const RecommendationDrawer: React.FC<RecommendationDrawerProps> = ({
               </p>
             </div>
           ) : (
-            filteredList.map((rec) => {
+            filteredList.map((rec, index) => {
               const isAdded = addedActivityRecommendationIds.includes(rec.id);
+              const categoryPosition = filteredList
+                .slice(0, index)
+                .filter((candidate) => candidate.category === rec.category)
+                .length;
 
               return (
-                <div
+                <motion.div
                   key={rec.id}
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.24, delay: Math.min(index * 0.035, 0.35) }}
                   draggable
                   onDragStart={(e) => {
                     e.dataTransfer.setData('text/plain', rec.id);
@@ -232,10 +202,11 @@ export const RecommendationDrawer: React.FC<RecommendationDrawerProps> = ({
                   <div className="flex items-center gap-3 min-w-0 flex-1">
                     <div className="relative w-14 h-14 sm:w-16 sm:h-16 rounded-xl overflow-hidden bg-[#F4F1EA] shrink-0">
                       <img
-                        src={rec.image}
+                        src={getActivityImage(rec, categoryPosition)}
                         alt={rec.name}
                         referrerPolicy="no-referrer"
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                        onError={(event) => handleActivityImageError(event, rec)}
                       />
                     </div>
 
@@ -269,9 +240,11 @@ export const RecommendationDrawer: React.FC<RecommendationDrawerProps> = ({
                   </div>
 
                   {/* Add Button */}
-                  <button
+                  <motion.button
                     type="button"
                     onClick={() => onAddRecommendation(rec, targetDayNumber)}
+                    whileHover={{ scale: 1.04 }}
+                    whileTap={{ scale: 0.95 }}
                     className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shrink-0 cursor-pointer ${
                       isAdded
                         ? 'bg-[#EAF8F5] text-[#179E8E] border border-[#20B8A6]/30'
@@ -289,13 +262,14 @@ export const RecommendationDrawer: React.FC<RecommendationDrawerProps> = ({
                         <span>Add</span>
                       </>
                     )}
-                  </button>
-                </div>
+                  </motion.button>
+                </motion.div>
               );
             })
           )}
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </div>}
+    </AnimatePresence>
   );
 };

@@ -4,7 +4,7 @@
 
 import { CurrencyCode, TravelStyle, BudgetStyle } from './profile';
 
-export type TripStatus = 'upcoming' | 'planning' | 'completed';
+export type TripStatus = 'draft' | 'upcoming' | 'planning' | 'completed';
 
 export type TripType =
   | 'leisure'
@@ -15,6 +15,7 @@ export type TripType =
   | 'family'
   | 'backpacking'
   | 'photography'
+  | 'photoshoot'
   | 'wellness';
 
 export type TransportPreference =
@@ -33,6 +34,19 @@ export type AccommodationStyle =
   | 'apartment'
   | 'luxury_hotel';
 
+export interface TripCity {
+  id?: string;
+  tripId?: string;
+  cityName: string;
+  country?: string;
+  orderIndex: number;
+  arrivalDate?: string;
+  departureDate?: string;
+  stayDurationDays?: number;
+  latitude?: number;
+  longitude?: number;
+}
+
 export interface TripItem {
   id: string;
   tripId: string;
@@ -40,6 +54,8 @@ export interface TripItem {
   type: 'place' | 'hotel' | 'food' | 'experience';
   name: string;
   location?: string;
+  latitude?: number;
+  longitude?: number;
   image?: string;
   estimatedCost: number;
   currency: CurrencyCode;
@@ -53,11 +69,15 @@ export interface Trip {
   id: string;
   userId?: string;
   name: string;
+  origin?: string;
+  originCountry?: string;
   destination: string;
   country: string;
   coverImage: string;
   startDate: string;
   endDate: string;
+  arrivalLocation?: string;
+  arrivalTime?: string;
   dateDisplay: string;
   durationDays: number;
   travelersCount: number;
@@ -75,6 +95,8 @@ export interface Trip {
   estimatedCost?: number;
   tripHealthScore?: number;
   status: TripStatus;
+  cities?: TripCity[];
+  role?: string;
   items?: TripItem[];
   savedRecommendationIds?: string[];
   isFavorite?: boolean;
@@ -94,12 +116,17 @@ export interface TripPlannerDraft {
   step?: number;
   currentStep?: number;
   name: string;
+  origin?: string;
+  originCountry?: string;
   destination: string;
   country: string;
   destinationImage: string;
   destinationId?: string;
+  cities?: TripCity[];
   startDate: string;
   endDate: string;
+  arrivalLocation?: string;
+  arrivalTime?: string;
   adultsCount: number;
   childrenCount: number;
   travelersCount?: number;

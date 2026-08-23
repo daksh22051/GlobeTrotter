@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { motion } from 'motion/react';
 import { Compass, ArrowLeft, Plus, Sparkles, CheckCircle2 } from 'lucide-react';
 import { tripService } from '../services/tripService';
 import { itineraryService, recommendationToActivity } from '../services/itineraryService';
@@ -13,7 +14,8 @@ import {
 import { Recommendation, RecommendationCategory } from '../types/recommendation';
 import { mockRecommendations } from '../data/mockRecommendations';
 import { detectDayConflicts } from '../utils/itineraryConflictDetector';
-import { calculateDayHealth, calculateItineraryStats } from '../utils/dayHealthCalculator';
+import { calculateDayHealth, calculateItineraryStats, normalizeItinerarySchedule } from '../utils/dayHealthCalculator';
+import { buildTripRecommendations } from '../utils/recommendationMatcher';
 
 // Subcomponents
 import { ItineraryHeader } from '../components/itinerary/ItineraryHeader';
@@ -22,12 +24,16 @@ import { DaySelector } from '../components/itinerary/DaySelector';
 import { DayTimeline } from '../components/itinerary/DayTimeline';
 import { CalendarView } from '../components/itinerary/CalendarView';
 import { TripSummarySidebar } from '../components/itinerary/TripSummarySidebar';
-import { UnscheduledActivitiesArea } from '../components/itinerary/UnscheduledActivitiesArea';
 import { RecommendationDrawer } from '../components/itinerary/RecommendationDrawer';
+import { CategoryRecommendationPanel } from '../components/itinerary/CategoryRecommendationPanel';
 import { AIOptimizeModal } from '../components/itinerary/AIOptimizeModal';
 import { ActivityEditorModal } from '../components/itinerary/ActivityEditorModal';
 import { MoveActivityModal } from '../components/itinerary/MoveActivityModal';
 import { DeleteConfirmationModal } from '../components/itinerary/DeleteConfirmationModal';
+import { TravelAssistantFloatingLauncher } from '../components/ai-assistant/TravelAssistantFloatingLauncher';
+import { TravelAssistantDrawer } from '../components/ai-assistant/TravelAssistantDrawer';
+import { MobileBottomNav } from '../components/dashboard/MobileBottomNav';
+import { MultiCityStopCards } from '../components/itinerary/MultiCityStopCards';
 
 export const ItineraryPage: React.FC = () => {
   const { tripId } = useParams<{ tripId: string }>();
@@ -38,7 +44,6 @@ export const ItineraryPage: React.FC = () => {
   const [itinerary, setItinerary] = useState<Itinerary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
 
   // Undo History
   const [history, setHistory] = useState<Itinerary[]>([]);
@@ -46,6 +51,7 @@ export const ItineraryPage: React.FC = () => {
   // Navigation & View State
   const [selectedDayNumber, setSelectedDayNumber] = useState<number>(1);
   const [viewMode, setViewMode] = useState<'timeline' | 'calendar'>('timeline');
+  const [workspaceTab, setWorkspaceTab] = useState<'timeline' | RecommendationCategory>('timeline');
 
   // Modal & Drawer States
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -56,6 +62,9 @@ export const ItineraryPage: React.FC = () => {
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [optimizeStepIndex, setOptimizeStepIndex] = useState(0);
   const [optimizationResult, setOptimizationResult] = useState<OptimizationResult | null>(null);
+
+  // AI Assistant Copilot Drawer State
+  const [isAssistantOpen, setIsAssistantOpen] = useState(false);
 
   // Activity Editor State
   const [editingActivity, setEditingActivity] = useState<Partial<ItineraryActivity> | null>(null);
@@ -84,10 +93,31 @@ export const ItineraryPage: React.FC = () => {
     const loadedTrip = tripService.getTripById(tripId);
     if (loadedTrip) {
       setTrip(loadedTrip);
-      const loadedItinerary = itineraryService.getItinerary(tripId, loadedTrip);
+      const loadedItinerary = normalizeItinerarySchedule(itineraryService.getItinerary(tripId, loadedTrip));
       setItinerary(loadedItinerary);
+      itineraryService.saveItinerary(loadedItinerary, loadedTrip.userId);
     }
     setIsLoading(false);
+
+    // Background fetch from PostgreSQL
+    tripService.fetchTripById(tripId).then((freshTrip) => {
+      if (freshTrip) {
+        const cachedTrip = tripService.getTripById(tripId);
+        const tripWithCachedItems = {
+          ...freshTrip,
+          items: freshTrip.items || cachedTrip?.items || [],
+        };
+        setTrip(tripWithCachedItems);
+        itineraryService.fetchItinerary(tripId).then((freshItin) => {
+          if (freshItin) {
+            const seededItinerary = itineraryService.seedTripItems(freshItin, tripWithCachedItems);
+            const normalizedItinerary = normalizeItinerarySchedule(seededItinerary);
+            setItinerary(normalizedItinerary);
+            itineraryService.saveItinerary(normalizedItinerary, tripWithCachedItems.userId);
+          }
+        });
+      }
+    }).catch(() => {});
   }, [tripId]);
 
   // Helper to commit state changes with undo history tracking & autosave
@@ -101,9 +131,11 @@ export const ItineraryPage: React.FC = () => {
       if (saveToDisk) {
         setIsSaving(true);
         itineraryService.saveItinerary(newItinerary, trip?.userId);
+        itineraryService.batchSyncItinerary(newItinerary).catch((err) => {
+          console.warn('Backend sync deferred:', err);
+        });
         setTimeout(() => {
           setIsSaving(false);
-          setLastSavedAt(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
         }, 300);
       }
     },
@@ -134,7 +166,7 @@ export const ItineraryPage: React.FC = () => {
         overBudgetAmount: 0,
         totalTravelMinutes: 0,
         totalConflicts: 0,
-        planningHealthScore: 100,
+        planningHealthScore: 0,
         dayHealths: {},
       };
     }
@@ -155,20 +187,7 @@ export const ItineraryPage: React.FC = () => {
   }, [currentDay]);
 
   const currentDayHealth = useMemo(() => {
-    if (!currentDay) {
-      return {
-        dayNumber: selectedDayNumber,
-        score: 100,
-        status: 'Excellent' as const,
-        totalActivities: 0,
-        totalCost: 0,
-        totalTravelMinutes: 0,
-        freeTimeMinutes: 0,
-        conflictCount: 0,
-        reasons: [],
-      };
-    }
-    return calculateDayHealth(currentDay);
+    return currentDay ? calculateDayHealth(currentDay) : null;
   }, [currentDay, selectedDayNumber]);
 
   // Recommendations for drawer
@@ -179,11 +198,8 @@ export const ItineraryPage: React.FC = () => {
 
   const allRecommendationsList = useMemo(() => {
     if (!trip) return mockRecommendations;
-    const dest = trip.destination.toLowerCase();
-    const matches = mockRecommendations.filter(
-      (m) => m.destination.toLowerCase().includes(dest) || m.country.toLowerCase().includes(dest)
-    );
-    return matches.length > 0 ? matches : mockRecommendations;
+    const recs = buildTripRecommendations(trip);
+    return recs.allRecommendations;
   }, [trip]);
 
   const addedRecIds = useMemo(() => {
@@ -200,9 +216,47 @@ export const ItineraryPage: React.FC = () => {
     return ids;
   }, [itinerary]);
 
+  const recommendationsByCategory = useMemo(() => {
+    const categories = allRecommendationsList.reduce<Record<RecommendationCategory, Recommendation[]>>(
+      (grouped, recommendation) => {
+        grouped[recommendation.category].push(recommendation);
+        return grouped;
+      },
+      { hotel: [], food: [], place: [], experience: [] }
+    );
+    return categories;
+  }, [allRecommendationsList]);
+
   // ==========================================
   // HANDLERS
   // ==========================================
+
+  // Auto-Fill Day with Recommendations
+  const handleAutoFillDay = (dayNumber: number) => {
+    if (!trip || !itinerary) return;
+    const recs = buildTripRecommendations(trip);
+    const pool = [...recs.places, ...recs.attractions, ...recs.food];
+    if (pool.length === 0) return;
+
+    const existingRecIds = new Set<string>();
+    itinerary.days.forEach((d) => d.activities.forEach((a) => {
+      if (a.recommendationId) existingRecIds.add(a.recommendationId);
+    }));
+
+    const available = pool.filter((r) => !existingRecIds.has(r.id));
+    const toAdd = (available.length > 0 ? available : pool).slice(0, 3);
+    const timeSlots = ['09:30', '13:30', '17:00'];
+
+    let updated = itinerary;
+    toAdd.forEach((rec, idx) => {
+      const slot = timeSlots[idx % timeSlots.length];
+      const act = recommendationToActivity(rec, dayNumber, slot);
+      updated = itineraryService.addActivity(updated, act, dayNumber);
+    });
+
+    commitItineraryChange(updated);
+    showToast(`✨ Auto-filled Day ${dayNumber} with ${toAdd.length} recommendations!`);
+  };
 
   // Add Recommendation from Drawer
   const handleAddRecommendation = (rec: Recommendation, dayNumber: number) => {
@@ -211,6 +265,16 @@ export const ItineraryPage: React.FC = () => {
     const updated = itineraryService.addActivity(itinerary, newAct, dayNumber);
     commitItineraryChange(updated);
     showToast(`Added "${rec.name}" to Day ${dayNumber}`);
+  };
+
+  const handleRemoveRecommendation = (rec: Recommendation) => {
+    if (!itinerary) return;
+    const activity = itinerary.days
+      .flatMap((day) => day.activities)
+      .find((candidate) => candidate.recommendationId === rec.id);
+    if (!activity) return;
+    commitItineraryChange(itineraryService.removeActivity(itinerary, activity.id));
+    showToast(`Removed "${rec.name}" from the itinerary`);
   };
 
   // Add / Save Custom Activity from Editor Modal
@@ -314,6 +378,9 @@ export const ItineraryPage: React.FC = () => {
       setOptimizationResult(result);
     } catch (err) {
       console.error(err);
+      setIsAIOptimizeOpen(false);
+      setOptimizationResult(null);
+      showToast('Optimization could not be completed. Your current itinerary is unchanged.');
     } finally {
       setIsOptimizing(false);
     }
@@ -365,10 +432,14 @@ export const ItineraryPage: React.FC = () => {
   }
 
   const currency = trip.currency || '₹';
-  const availableDayNumbers = (itinerary.days || []).map((d) => d.dayNumber);
 
   return (
-    <div className="min-h-screen bg-[#FDFBF7] text-[#17201D] flex flex-col font-sans selection:bg-[#FF6B4A]/20">
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: 'easeOut' }}
+      className="min-h-screen bg-[#FFFDF8] text-[#17201D] flex flex-col font-sans selection:bg-[#FF6B4A]/20 pb-24 lg:pb-8"
+    >
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 bg-[#17201D] text-white px-4 py-2.5 rounded-2xl shadow-xl flex items-center gap-2 text-xs font-bold animate-in fade-in slide-in-from-bottom-3 duration-200">
@@ -380,21 +451,29 @@ export const ItineraryPage: React.FC = () => {
       {/* 1. Header */}
       <ItineraryHeader
         trip={trip}
-        onOpenAIOptimize={handleStartAIOptimize}
         onSave={() => {
+          const savedTrip = tripService.saveTrip(trip.id, trip.userId);
+          if (savedTrip) setTrip(savedTrip);
           itineraryService.saveItinerary(itinerary, trip.userId);
-          showToast('Itinerary saved successfully');
+          showToast(savedTrip ? 'Trip and itinerary saved successfully' : 'Itinerary saved successfully');
         }}
         onUndo={handleUndo}
         canUndo={history.length > 0}
-        isSaving={isSaving}
-        lastSavedAt={lastSavedAt}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
       />
 
       {/* 2. Compact Trip Overview Bar */}
       <TripOverviewBar trip={trip} />
+
+      <MultiCityStopCards
+        days={itinerary.days}
+        selectedDayNumber={selectedDayNumber}
+        onSelectDay={(dayNumber) => {
+          setSelectedDayNumber(dayNumber);
+          setViewMode('timeline');
+        }}
+      />
 
       {/* 3. Day Selector Bar (Timeline Mode) */}
       {viewMode === 'timeline' && (
@@ -408,13 +487,45 @@ export const ItineraryPage: React.FC = () => {
       )}
 
       {/* 4. Main Body Content */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          {/* Main Left Column (Timeline / Calendar View + Unscheduled) */}
-          <div className="lg:col-span-8 space-y-8">
+      <main className="relative z-0 flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-5 sm:pt-7 lg:pt-8 pb-6 sm:pb-8 overflow-x-hidden">
+        <div className={`w-full grid grid-cols-1 gap-5 sm:gap-6 lg:gap-8 items-start ${
+          viewMode === 'timeline' ? 'lg:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]' : ''
+        }`}>
+          {/* Main Left Column (Timeline / Calendar View) */}
+          <div className="w-full min-w-0 overflow-x-hidden space-y-8">
             {viewMode === 'timeline' ? (
-              currentDay && (
-                <DayTimeline
+              currentDay && currentDayHealth && (
+                <div className="space-y-4">
+                  <div className="flex flex-wrap items-center gap-2 p-3 bg-white rounded-2xl border border-[#EAE6DD] shadow-2xs">
+                    <span className="text-xs font-extrabold text-[#17201D] mr-1">Plan Day {currentDay.dayNumber}</span>
+                    <button
+                      type="button"
+                      onClick={() => setWorkspaceTab('timeline')}
+                      className={`px-3 py-1.5 rounded-full text-[11px] font-extrabold transition-colors cursor-pointer ${workspaceTab === 'timeline' ? 'bg-[#17201D] text-white' : 'bg-[#F9F7F1] border border-[#EAE6DD] text-[#4E5955]'}`}
+                    >
+                      Daily Timeline
+                    </button>
+                    {[
+                      { id: 'hotel', label: 'Hotels & Stays' },
+                      { id: 'food', label: 'Food & Dining' },
+                      { id: 'place', label: 'Sightseeing Attractions' },
+                    ].map((category) => (
+                      <button
+                        key={category.id}
+                        type="button"
+                        onClick={() => {
+                          setDrawerFilter(category.id as RecommendationCategory);
+                          setWorkspaceTab(category.id as RecommendationCategory);
+                        }}
+                        className={`px-3 py-1.5 rounded-full text-[11px] font-extrabold transition-colors cursor-pointer ${workspaceTab === category.id ? 'bg-[#FF6B4A] text-white' : 'bg-[#F9F7F1] border border-[#EAE6DD] text-[#4E5955] hover:border-[#FF6B4A]/50 hover:text-[#17201D]'}`}
+                      >
+                        {category.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {workspaceTab === 'timeline' ? (
+                    <DayTimeline
                   day={currentDay}
                   conflicts={currentDayConflicts}
                   dayHealth={currentDayHealth}
@@ -445,7 +556,20 @@ export const ItineraryPage: React.FC = () => {
                   }}
                   onReorder={handleReorder}
                   onMoveActivityAcrossDays={handleMoveActivityAcrossDays}
-                />
+                  onAutoFillDay={() => handleAutoFillDay(currentDay.dayNumber)}
+                  />
+                  ) : (
+                    <CategoryRecommendationPanel
+                      category={workspaceTab}
+                      recommendations={recommendationsByCategory[workspaceTab]}
+                      addedRecommendationIds={addedRecIds}
+                      currency={currency}
+                      dayNumber={currentDay.dayNumber}
+                      onAdd={handleAddRecommendation}
+                      onRemove={handleRemoveRecommendation}
+                    />
+                  )}
+                </div>
               )
             ) : (
               /* Calendar View */
@@ -496,37 +620,19 @@ export const ItineraryPage: React.FC = () => {
               </div>
             )}
 
-            {/* Unscheduled Activities Section */}
-            <UnscheduledActivitiesArea
-              activities={itinerary.unscheduledActivities || []}
-              currency={currency}
-              availableDays={availableDayNumbers}
-              onScheduleToDay={(act, dayNum) =>
-                handleMoveActivityAcrossDays(act.id, dayNum)
-              }
-              onRemove={(actId) => {
-                const found = itinerary.unscheduledActivities.find((a) => a.id === actId);
-                if (found) {
-                  setActivityToDelete(found);
-                  setIsDeleteModalOpen(true);
-                }
-              }}
-              onOpenAddDrawer={() => {
-                setDrawerFilter('all');
-                setIsDrawerOpen(true);
-              }}
-            />
           </div>
 
-          {/* Right Column: Live Summary Sidebar */}
-          <div className="lg:col-span-4 lg:sticky lg:top-24">
-            <TripSummarySidebar
-              trip={trip}
-              itinerary={itinerary}
-              stats={stats}
-              onOpenAIOptimize={handleStartAIOptimize}
-            />
-          </div>
+          {/* Right Column: Live Summary Sidebar (Timeline only) */}
+          {viewMode === 'timeline' && (
+            <div className="w-full min-w-0 overflow-hidden lg:sticky lg:top-24">
+              <TripSummarySidebar
+                trip={trip}
+                itinerary={itinerary}
+                stats={stats}
+                onOpenAIOptimize={handleStartAIOptimize}
+              />
+            </div>
+          )}
         </div>
       </main>
 
@@ -591,6 +697,25 @@ export const ItineraryPage: React.FC = () => {
         }}
         onConfirm={handleConfirmDelete}
       />
-    </div>
+
+      {/* Floating AI Assistant Copilot Launcher & Drawer */}
+      <TravelAssistantFloatingLauncher
+        onClick={() => setIsAssistantOpen(true)}
+      />
+      <TravelAssistantDrawer
+        isOpen={isAssistantOpen}
+        onClose={() => setIsAssistantOpen(false)}
+        trip={trip}
+        onStateChange={() => {
+          if (tripId && trip) {
+            const reloaded = itineraryService.getItinerary(tripId, trip);
+            setItinerary(reloaded);
+          }
+        }}
+      />
+
+      {/* Mobile Bottom Navigation */}
+      <MobileBottomNav />
+    </motion.div>
   );
 };

@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { Sparkles, Check, Heart, MessageSquare } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Sparkles, Check, ChevronDown, ChevronUp, Heart, MessageSquare } from 'lucide-react';
 
 interface InterestsStepProps {
   interests: string[];
@@ -32,6 +32,10 @@ export const InterestsStep: React.FC<InterestsStepProps> = ({
   onUpdate,
   error,
 }) => {
+  const [showAllInterests, setShowAllInterests] = useState(false);
+  const [showNotes, setShowNotes] = useState(Boolean(notes));
+  const visibleInterests = showAllInterests ? INTEREST_ITEMS : INTEREST_ITEMS.slice(0, 4);
+
   const toggleInterest = (id: string) => {
     const exists = interests.includes(id);
     let updated: string[];
@@ -78,11 +82,15 @@ export const InterestsStep: React.FC<InterestsStepProps> = ({
 
       {/* Smart Matching Live Message Banner */}
       {smartInsightMessage && (
-        <div className="p-4 rounded-2xl bg-gradient-to-r from-[#EDFAF7] via-[#F4FBFA] to-[#E5F7F3] border border-[#C6EFE7] flex items-center gap-3 shadow-2xs">
-          <div className="w-8 h-8 rounded-xl bg-[#20B8A6] text-white flex items-center justify-center shrink-0">
-            <Sparkles className="w-4 h-4" />
+        <div
+          key={smartInsightMessage}
+          role="status"
+          className="min-h-12 p-3 rounded-2xl bg-gradient-to-r from-[#EDFAF7] via-[#F4FBFA] to-[#E5F7F3] border border-[#C6EFE7] flex items-center gap-2.5 shadow-2xs transition-all duration-200 animate-in fade-in"
+        >
+          <div className="w-7 h-7 rounded-lg bg-[#20B8A6] text-white flex items-center justify-center shrink-0">
+            <Sparkles className="w-3.5 h-3.5" />
           </div>
-          <p className="text-xs sm:text-sm font-bold text-[#106F63]">
+          <p className="text-xs font-bold text-[#106F63] leading-snug">
             {smartInsightMessage}
           </p>
         </div>
@@ -100,7 +108,7 @@ export const InterestsStep: React.FC<InterestsStepProps> = ({
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-          {INTEREST_ITEMS.map((item) => {
+          {visibleInterests.map((item) => {
             const isSelected = interests.includes(item.id);
             return (
               <div
@@ -136,41 +144,59 @@ export const InterestsStep: React.FC<InterestsStepProps> = ({
             );
           })}
         </div>
+        {INTEREST_ITEMS.length > 4 && (
+          <button
+            type="button"
+            onClick={() => setShowAllInterests((current) => !current)}
+            className="mx-auto mt-3 inline-flex items-center gap-1.5 rounded-full border border-[#EAE6DD] bg-white px-4 py-2 text-xs font-bold text-[#5E6B67] transition-colors hover:border-[#17201D] hover:text-[#17201D]"
+          >
+            <span>{showAllInterests ? 'Show less' : `Show all ${INTEREST_ITEMS.length} interests`}</span>
+            {showAllInterests ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
+        )}
 
         {error && (
           <p className="text-xs font-semibold text-[#E55837] mt-1.5">{error}</p>
         )}
       </div>
 
-      {/* Optional Traveler Notes Textarea */}
-      <div className="space-y-2 pt-2">
-        <div className="flex items-center justify-between">
-          <label
-            htmlFor="trip-notes-textarea"
-            className="block text-xs font-bold uppercase tracking-wider text-[#4A5551] flex items-center gap-1.5"
-          >
+      {/* Optional Traveler Notes Accordion */}
+      <div className="pt-1 rounded-2xl border border-[#EAE6DD] bg-white overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setShowNotes((current) => !current)}
+          aria-expanded={showNotes}
+          aria-controls="trip-notes-panel"
+          className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-[#FAF9F5] transition-colors cursor-pointer"
+        >
+          <span className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#4A5551]">
             <MessageSquare className="w-3.5 h-3.5 text-[#98A29F]" />
-            <span>Anything else we should know?</span>
-            <span className="text-[10px] font-normal text-[#98A29F] lowercase">(optional)</span>
-          </label>
-          <span
-            className={`text-xs font-semibold ${
-              notes.length > 450 ? 'text-[#E55837] font-bold' : 'text-[#98A29F]'
-            }`}
-          >
-            {notes.length}/500
+            <span>Additional Notes (Optional)</span>
           </span>
-        </div>
+          <span className="flex items-center gap-2 text-[10px] text-[#98A29F]">
+            {notes ? 'Added' : 'Optional'}
+            {showNotes ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </span>
+        </button>
 
-        <textarea
-          id="trip-notes-textarea"
-          maxLength={500}
-          rows={3}
-          value={notes}
-          onChange={(e) => onUpdate({ notes: e.target.value })}
-          placeholder="Special occasions, accessibility needs, places you want to avoid, must-visit spots, dietary restrictions or flight arrival notes..."
-          className="w-full p-4 rounded-2xl bg-white text-xs sm:text-sm font-medium text-[#17201D] placeholder:text-[#98A29F] border border-[#EAE6DD] hover:border-[#D1CCC2] focus:border-[#FF6B4A] focus:outline-none focus:ring-2 focus:ring-[#FF6B4A]/20 transition-all resize-none"
-        />
+        {showNotes && (
+          <div id="trip-notes-panel" className="px-4 pb-4 space-y-2 animate-in slide-in-from-top-1 duration-150">
+            <div className="flex items-center justify-end">
+              <span className={`text-xs font-semibold ${notes.length > 450 ? 'text-[#E55837] font-bold' : 'text-[#98A29F]'}`}>
+                {notes.length}/500
+              </span>
+            </div>
+            <textarea
+              id="trip-notes-textarea"
+              maxLength={500}
+              rows={3}
+              value={notes}
+              onChange={(e) => onUpdate({ notes: e.target.value })}
+              placeholder="Special occasions, accessibility needs, places you want to avoid, must-visit spots, dietary restrictions or flight arrival notes..."
+              className="w-full p-3 rounded-xl bg-[#FCFBF8] text-xs sm:text-sm font-medium text-[#17201D] placeholder:text-[#98A29F] border border-[#EAE6DD] hover:border-[#D1CCC2] focus:border-[#FF6B4A] focus:outline-none focus:ring-2 focus:ring-[#FF6B4A]/20 transition-all resize-none"
+            />
+          </div>
+        )}
       </div>
     </div>
   );

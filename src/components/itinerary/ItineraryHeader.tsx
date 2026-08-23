@@ -1,14 +1,13 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'motion/react';
 import {
   ArrowLeft,
-  Sparkles,
   Check,
   RotateCcw,
   Calendar as CalendarIcon,
   Clock,
   Save,
-  CheckCircle2,
   Map as MapIcon,
   Wallet,
 } from 'lucide-react';
@@ -16,24 +15,18 @@ import { Trip } from '../../types/trip';
 
 interface ItineraryHeaderProps {
   trip: Trip;
-  onOpenAIOptimize: () => void;
   onSave: () => void;
   onUndo: () => void;
   canUndo: boolean;
-  isSaving: boolean;
-  lastSavedAt: string | null;
   viewMode: 'timeline' | 'calendar';
   onViewModeChange: (mode: 'timeline' | 'calendar') => void;
 }
 
 export const ItineraryHeader: React.FC<ItineraryHeaderProps> = ({
   trip,
-  onOpenAIOptimize,
   onSave,
   onUndo,
   canUndo,
-  isSaving,
-  lastSavedAt,
   viewMode,
   onViewModeChange,
 }) => {
@@ -43,21 +36,21 @@ export const ItineraryHeader: React.FC<ItineraryHeaderProps> = ({
     <header className="sticky top-0 z-30 bg-[#FFFDF8]/95 backdrop-blur-md border-b border-[#EAE6DD] transition-all">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 sm:py-4">
         {/* Top Utility Row */}
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 mb-2 min-w-0">
           {/* Back button & Breadcrumb */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <button
               type="button"
-              onClick={() => navigate(`/trip/${trip.id}/recommendations`)}
+              onClick={() => navigate('/dashboard')}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-[#EAE6DD] text-[#5E6B67] hover:text-[#17201D] hover:border-[#FF6B4A]/40 text-xs font-bold transition-colors cursor-pointer shadow-2xs"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Back to Trip</span>
+                <span>Back to Dashboard</span>
             </button>
 
             <div className="hidden sm:flex items-center gap-2 text-xs text-[#838F8B]">
               <span>/</span>
-              <span className="font-medium text-[#17201D] truncate max-w-[200px]">
+                <span className="font-medium text-[#17201D] truncate max-w-[min(200px,25vw)]">
                 {trip.name}
               </span>
               <span>/</span>
@@ -65,23 +58,8 @@ export const ItineraryHeader: React.FC<ItineraryHeaderProps> = ({
             </div>
           </div>
 
-          {/* Right Action Group: Autosave, Undo, View Toggle, Save, AI Optimize */}
-          <div className="flex items-center flex-wrap gap-2 sm:gap-3">
-            {/* Autosave Status indicator */}
-            <div className="hidden md:flex items-center gap-1.5 text-xs text-[#838F8B] px-2.5 py-1 rounded-full bg-[#F4F1EA]/80 border border-[#EAE6DD]/60">
-              {isSaving ? (
-                <>
-                  <div className="w-2 h-2 rounded-full bg-[#FFB020] animate-pulse" />
-                  <span className="text-[11px] font-medium text-[#5E6B67]">Saving...</span>
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="w-3.5 h-3.5 text-[#20B8A6]" />
-                  <span className="text-[11px] font-medium text-[#5E6B67]">Saved</span>
-                </>
-              )}
-            </div>
-
+          {/* Right Action Group: Autosave, Undo, View Toggle, Save */}
+          <div className="flex items-center justify-end flex-wrap gap-2 sm:gap-3 min-w-0 max-w-full">
             {/* Undo Button */}
             {canUndo && (
               <button
@@ -143,35 +121,18 @@ export const ItineraryHeader: React.FC<ItineraryHeaderProps> = ({
               <span>Budget</span>
             </button>
 
-            {/* Smart Calendar & Timeline Button */}
-            <button
-              type="button"
-              onClick={() => navigate(`/trip/${trip.id}/calendar`)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white border border-[#EAE6DD] hover:border-[#17201D] text-[#17201D] text-xs font-bold shadow-2xs transition-colors cursor-pointer"
-            >
-              <CalendarIcon className="w-3.5 h-3.5 text-[#E08A00]" />
-              <span>Timeline</span>
-            </button>
-
             {/* Save Button */}
-            <button
+            <motion.button
               type="button"
               onClick={onSave}
+              whileHover={{ scale: 1.03, y: -1 }}
+              whileTap={{ scale: 0.96 }}
               className="hidden sm:inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-white border border-[#EAE6DD] hover:border-[#17201D] text-[#17201D] text-xs sm:text-sm font-bold shadow-2xs transition-colors cursor-pointer"
             >
               <Save className="w-3.5 h-3.5 text-[#5E6B67]" />
               <span>Save</span>
-            </button>
+            </motion.button>
 
-            {/* AI Optimize ✨ Button */}
-            <button
-              type="button"
-              onClick={onOpenAIOptimize}
-              className="inline-flex items-center gap-2 px-4 sm:px-5 py-2 rounded-full bg-gradient-to-r from-[#FF6B4A] via-[#FF7E5F] to-[#20B8A6] text-white text-xs sm:text-sm font-black shadow-md shadow-[#FF6B4A]/25 hover:shadow-lg hover:shadow-[#FF6B4A]/30 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer"
-            >
-              <Sparkles className="w-4 h-4 text-[#FFF275] animate-spin-slow" />
-              <span>AI Optimize ✨</span>
-            </button>
           </div>
         </div>
 
@@ -187,10 +148,7 @@ export const ItineraryHeader: React.FC<ItineraryHeaderProps> = ({
           </div>
 
           {/* Mobile Quick Save */}
-          <div className="flex sm:hidden items-center justify-between pt-1">
-            <span className="text-[11px] text-[#838F8B]">
-              {isSaving ? 'Autosaving...' : 'All changes saved locally'}
-            </span>
+          <div className="flex sm:hidden items-center justify-end pt-1">
             <button
               type="button"
               onClick={onSave}

@@ -1,12 +1,8 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PlusCircle, Briefcase, Globe2, ArrowUpRight, Sparkles } from 'lucide-react';
+import { PlusCircle, Briefcase, Globe2, ArrowUpRight } from 'lucide-react';
 
-interface QuickActionsProps {
-  tripCount?: number;
-}
-
-export const QuickActions: React.FC<QuickActionsProps> = ({ tripCount = 0 }) => {
+export const QuickActions: React.FC = () => {
   const navigate = useNavigate();
 
   return (
@@ -15,7 +11,6 @@ export const QuickActions: React.FC<QuickActionsProps> = ({ tripCount = 0 }) => 
         <h3 className="text-base font-extrabold text-[#17201D] tracking-tight">
           Start planning
         </h3>
-        <span className="text-xs font-semibold text-[#68736F]">Quick workflows</span>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
@@ -31,10 +26,6 @@ export const QuickActions: React.FC<QuickActionsProps> = ({ tripCount = 0 }) => 
           <div className="flex items-start justify-between gap-3 mb-4">
             <div className="w-12 h-12 rounded-2xl bg-[#FF6B4A] text-white flex items-center justify-center shadow-md shadow-[#FF6B4A]/25 group-hover:scale-110 transition-transform duration-200">
               <PlusCircle className="w-6 h-6 stroke-[2.2]" />
-            </div>
-            <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/90 text-[#FF6B4A] text-[10px] font-extrabold border border-[#FFD3C4]">
-              <Sparkles className="w-3 h-3" />
-              <span>Recommended</span>
             </div>
           </div>
 
@@ -64,9 +55,6 @@ export const QuickActions: React.FC<QuickActionsProps> = ({ tripCount = 0 }) => 
             <div className="w-12 h-12 rounded-2xl bg-[#DDF7F2] text-[#20B8A6] flex items-center justify-center group-hover:scale-110 transition-transform duration-200">
               <Briefcase className="w-6 h-6 stroke-[2.2]" />
             </div>
-            <span className="px-2.5 py-1 rounded-full bg-[#F4F1EA] text-[#68736F] text-[10px] font-bold">
-              {tripCount} {tripCount === 1 ? 'Trip' : 'Trips'}
-            </span>
           </div>
 
           <div>
@@ -95,9 +83,6 @@ export const QuickActions: React.FC<QuickActionsProps> = ({ tripCount = 0 }) => 
             <div className="w-12 h-12 rounded-2xl bg-[#FFF6DB] text-[#D97706] flex items-center justify-center group-hover:scale-110 transition-transform duration-200">
               <Globe2 className="w-6 h-6 stroke-[2.2]" />
             </div>
-            <span className="px-2.5 py-1 rounded-full bg-[#FFF9E6] text-[#D97706] text-[10px] font-bold">
-              10+ Curated
-            </span>
           </div>
 
           <div>

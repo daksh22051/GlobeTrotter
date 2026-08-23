@@ -6,6 +6,8 @@ import {
   ChevronRight,
   AlertCircle,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { Trip } from '../../types/trip';
 import { CategorySummary, ExpenseCategory } from '../../types/budget';
@@ -26,6 +28,8 @@ export const CategoryBreakdownSection: React.FC<CategoryBreakdownSectionProps> =
 }) => {
   const currency = trip.currency || 'INR';
   const [activeCategory, setActiveCategory] = useState<ExpenseCategory | null>(null);
+  const [showAllCategories, setShowAllCategories] = useState(false);
+  const visibleCategories = showAllCategories ? categories : categories.slice(0, 4);
 
   // Compute total spent across all categories
   const totalActual = categories.reduce((sum, c) => sum + c.actual, 0);
@@ -125,14 +129,14 @@ export const CategoryBreakdownSection: React.FC<CategoryBreakdownSectionProps> =
                 {formatCurrency(totalActual > 0 ? totalActual : trip.budget || 50000, currency)}
               </span>
               <span className="text-[10px] text-[#68736F] font-bold mt-0.5">
-                6 Categories
+                {categories.length} Categories
               </span>
             </div>
           </div>
 
           {/* Quick interactive category chips */}
           <div className="flex flex-wrap items-center justify-center gap-1.5 mt-4">
-            {categories.map((c) => (
+            {visibleCategories.map((c) => (
               <button
                 key={c.category}
                 type="button"
@@ -153,14 +157,24 @@ export const CategoryBreakdownSection: React.FC<CategoryBreakdownSectionProps> =
               </button>
             ))}
           </div>
+          {categories.length > 4 && (
+            <button
+              type="button"
+              onClick={() => setShowAllCategories((current) => !current)}
+              className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-[#EAE6DD] bg-white px-3 py-1.5 text-[11px] font-bold text-[#5E6B67] transition-colors hover:border-[#17201D] hover:text-[#17201D]"
+            >
+              <span>{showAllCategories ? 'Show less' : `View all ${categories.length} categories`}</span>
+              {showAllCategories ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </button>
+          )}
         </div>
 
         {/* Right side: Detailed Category Breakdown Cards Grid (8 cols) */}
         <div className="lg:col-span-8 grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-          {categories.map((cat) => {
+          {visibleCategories.map((cat) => {
             const isHovered = activeCategory === cat.category;
-            const percentageSpent = cat.budget > 0 ? Math.round((cat.actual / cat.budget) * 100) : 0;
-            const isOverBudget = cat.actual > cat.budget;
+            const percentageSpent = cat.percentageSpent;
+            const isOverBudget = cat.isOverBudget;
 
             return (
               <div

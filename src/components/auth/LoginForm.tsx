@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, ArrowRight, ShieldCheck, AlertCircle } from 'lucide-react';
 import { authService } from '../../services/authService';
 import { SocialLoginButton } from './SocialLoginButton';
+import { GoogleAuthModal } from './GoogleAuthModal';
 import { FormErrors } from '../../types/auth';
 
 export const LoginForm: React.FC = () => {
@@ -17,6 +18,7 @@ export const LoginForm: React.FC = () => {
   const [touched, setTouched] = useState<{ email?: boolean; password?: boolean }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
+  const [isGoogleModalOpen, setIsGoogleModalOpen] = useState(false);
 
   // Initialize remembered email if previously stored
   useEffect(() => {
@@ -107,23 +109,30 @@ export const LoginForm: React.FC = () => {
     }
   };
 
-  const handleGoogleLogin = async () => {
+  const handleGoogleLogin = () => {
+    setIsGoogleModalOpen(true);
+  };
+
+  const handleSelectGoogleAccount = async (account: { email: string; name: string; avatarUrl?: string }) => {
     setIsGoogleSubmitting(true);
     setErrors({});
 
     try {
-      const response = await authService.loginWithGoogle();
+      const response = await authService.loginWithGoogle(account);
       if (response.success && response.session) {
+        setIsGoogleModalOpen(false);
         navigate('/dashboard');
       } else {
         setErrors({
           general: response.error || 'Google sign-in failed. Please try again.',
         });
+        setIsGoogleModalOpen(false);
       }
     } catch {
       setErrors({
         general: 'An error occurred during Google sign-in.',
       });
+      setIsGoogleModalOpen(false);
     } finally {
       setIsGoogleSubmitting(false);
     }
@@ -131,6 +140,14 @@ export const LoginForm: React.FC = () => {
 
   return (
     <div className="w-full max-w-[440px] mx-auto text-left">
+      {/* Google Authentication Account Picker Modal */}
+      <GoogleAuthModal
+        isOpen={isGoogleModalOpen}
+        onClose={() => setIsGoogleModalOpen(false)}
+        onSelectAccount={handleSelectGoogleAccount}
+        isLoading={isGoogleSubmitting}
+      />
+
       {/* Top Welcome Title Block */}
       <div className="mb-8">
         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FFE4DD] text-[#E55837] text-xs font-bold uppercase tracking-wider mb-3">
@@ -148,12 +165,67 @@ export const LoginForm: React.FC = () => {
       {errors.general && (
         <div
           role="alert"
-          className="mb-6 p-4 rounded-2xl bg-red-50 border border-red-200 text-red-700 flex items-start gap-3 text-sm animate-shake"
+          className="mb-6 p-4 rounded-2xl bg-red-50 border border-red-200 text-red-700 flex flex-col gap-2 text-sm animate-shake"
         >
-          <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-          <div className="flex-1 font-medium">{errors.general}</div>
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+            <div className="flex-1 font-medium">{errors.general}</div>
+          </div>
+          <div className="flex items-center gap-3 pt-2 border-t border-red-200/60 text-xs">
+            <span className="text-red-600">New traveler?</span>
+            <button
+              type="button"
+              onClick={() => navigate('/signup')}
+              className="font-bold text-[#FF6B4A] hover:underline cursor-pointer"
+            >
+              Sign up with {email ? email : 'this email'} →
+            </button>
+          </div>
         </div>
       )}
+
+      {/* Quick Demo Access Bar */}
+      <div className="mb-6 p-3.5 rounded-2xl bg-[#FFF8ED] border border-[#FFE4DD] flex flex-col gap-2">
+        <div className="flex items-center justify-between text-xs font-bold text-[#17201D]">
+          <span className="flex items-center gap-1.5 text-[#FF6B4A]">
+            <span>⚡</span>
+            <span>Quick Demo Accounts</span>
+          </span>
+          <span className="text-[11px] font-medium text-[#68736F]">Click to auto-fill</span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+          <button
+            type="button"
+            onClick={() => {
+              setEmail('explorer@globetrotter.io');
+              setPassword('globetrotter2026');
+              setErrors({});
+            }}
+            className="flex items-center justify-between px-3 py-2 rounded-xl bg-white border border-[#EAE6DD] hover:border-[#FF6B4A] hover:bg-[#FFE4DD]/20 transition-colors text-left cursor-pointer"
+          >
+            <div className="truncate">
+              <p className="font-bold text-[#17201D]">Aarav (Explorer)</p>
+              <p className="text-[10px] text-[#68736F] truncate">explorer@globetrotter.io</p>
+            </div>
+            <span className="text-[10px] font-bold text-[#FF6B4A] shrink-0 ml-1">Use</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setEmail('dakshkhamar22@gmail.com');
+              setPassword('Daksh123@');
+              setErrors({});
+            }}
+            className="flex items-center justify-between px-3 py-2 rounded-xl bg-white border border-[#EAE6DD] hover:border-[#FF6B4A] hover:bg-[#FFE4DD]/20 transition-colors text-left cursor-pointer"
+          >
+            <div className="truncate">
+              <p className="font-bold text-[#17201D]">Daksh Khamar</p>
+              <p className="text-[10px] text-[#68736F] truncate">dakshkhamar22@gmail.com</p>
+            </div>
+            <span className="text-[10px] font-bold text-[#FF6B4A] shrink-0 ml-1">Use</span>
+          </button>
+        </div>
+      </div>
 
       {/* Social Google Sign-in */}
       <div className="mb-6">

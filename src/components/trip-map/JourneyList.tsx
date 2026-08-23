@@ -14,6 +14,7 @@ import {
 import { Itinerary, ItineraryDay, ItineraryActivity } from '../../types/itinerary';
 import { MAP_CONFIG, getDayColor } from '../../config/mapConfig';
 import { locationService } from '../../services/locationService';
+import { getActivityImage, handleActivityImageError } from '../../utils/activityImage';
 
 interface JourneyListProps {
   itinerary: Itinerary;
@@ -209,15 +210,17 @@ export const JourneyList: React.FC<JourneyListProps> = ({
                             <span className="text-xs mt-1">{category.emoji}</span>
                           </div>
 
-                          {/* Image Thumbnail (if available) */}
-                          {act.image && (
-                            <img
-                              src={act.image}
-                              alt={act.title}
-                              className="w-14 h-14 rounded-lg object-cover border border-[#EAE6DD] shrink-0"
-                              referrerPolicy="no-referrer"
-                            />
-                          )}
+                          {/* Image Thumbnail */}
+                          <div className="relative w-14 h-14 rounded-lg overflow-hidden border border-[#EAE6DD] shrink-0 bg-[#FFF0ED] text-[#FF6B4A] flex items-center justify-center">
+                            <MapPin className="w-5 h-5" />
+                              <img
+                                src={getActivityImage(act)}
+                                alt={act.title}
+                                className="absolute w-14 h-14 rounded-lg object-cover"
+                                referrerPolicy="no-referrer"
+                                onError={(event) => handleActivityImageError(event, act.category)}
+                              />
+                          </div>
 
                           {/* Details */}
                           <div className="flex-1 min-w-0">

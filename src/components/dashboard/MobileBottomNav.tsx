@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Home, Briefcase, Plus, Globe2, User } from 'lucide-react';
+import { Home, Briefcase, Plus, Globe2, User, Camera } from 'lucide-react';
 
 export const MobileBottomNav: React.FC = () => {
   const navItems = [
@@ -8,6 +8,7 @@ export const MobileBottomNav: React.FC = () => {
     { label: 'Trips', path: '/trips', icon: Briefcase },
     { label: 'Plan', path: '/plan-trip', icon: Plus, isAction: true },
     { label: 'Explore', path: '/explore', icon: Globe2 },
+    { label: 'Studio', path: '/photoshoot-planner', icon: Camera },
     { label: 'Profile', path: '/profile', icon: User },
   ];
 

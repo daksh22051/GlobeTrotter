@@ -18,6 +18,7 @@ import {
 import { TimelineDay } from './TimelineDay';
 import { TimelineActivityCard } from './TimelineActivityCard';
 import { TimelineFilterCategory } from './TimelineFilters';
+import { calculateDayHealth } from '../../utils/dayHealthCalculator';
 
 interface TripTimelineProps {
   itinerary: Itinerary;
@@ -199,17 +200,7 @@ export const TripTimeline: React.FC<TripTimelineProps> = ({
       ) : (
         <div className="space-y-4">
           {filteredDays.map((day) => {
-            const health = dayHealths[day.dayNumber] || {
-              dayNumber: day.dayNumber,
-              score: 90,
-              status: 'Balanced',
-              totalActivities: (day.activities || []).length,
-              totalCost: 0,
-              totalTravelMinutes: 0,
-              freeTimeMinutes: 0,
-              conflictCount: 0,
-              reasons: [],
-            };
+            const health = dayHealths[day.dayNumber] || calculateDayHealth(day);
 
             return (
               <TimelineDay

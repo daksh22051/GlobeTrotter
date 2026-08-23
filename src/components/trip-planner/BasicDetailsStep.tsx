@@ -1,16 +1,20 @@
-import React, { useMemo } from 'react';
-import { TripType } from '../../types/trip';
-import { DestinationSearch } from './DestinationSearch';
+import React, { useMemo, useState } from 'react';
+import { motion } from 'motion/react';
+import { TripType, TripCity } from '../../types/trip';
+import { MultiCitySelector } from './MultiCitySelector';
 import { TravellerSelector } from './TravellerSelector';
-import { Calendar, Sparkles, Clock } from 'lucide-react';
+import { Calendar, Clock } from 'lucide-react';
 
 interface BasicDetailsStepProps {
   name: string;
   destination: string;
   country: string;
   destinationImage: string;
+  cities?: TripCity[];
   startDate: string;
   endDate: string;
+  arrivalLocation: string;
+  arrivalTime: string;
   adultsCount: number;
   childrenCount: number;
   tripType: TripType;
@@ -21,8 +25,11 @@ interface BasicDetailsStepProps {
     country: string;
     destinationImage: string;
     destinationId: string;
+    cities: TripCity[];
     startDate: string;
     endDate: string;
+    arrivalLocation: string;
+    arrivalTime: string;
     adultsCount: number;
     childrenCount: number;
     tripType: TripType;
@@ -33,17 +40,11 @@ const TRIP_TYPES: {
   id: TripType;
   label: string;
   emoji: string;
-  description: string;
 }[] = [
-  { id: 'leisure', label: 'Leisure', emoji: '🏖', description: 'Relaxing escapes, scenic walks & downtime' },
-  { id: 'adventure', label: 'Adventure', emoji: '🏔', description: 'Hiking, treks & high-adrenaline thrills' },
-  { id: 'food_culture', label: 'Food & Culture', emoji: '🍜', description: 'Culinary tours, historical monuments & arts' },
-  { id: 'romantic', label: 'Romantic', emoji: '❤️', description: 'Intimate sunset dining & secluded retreats' },
-  { id: 'family', label: 'Family', emoji: '👨‍👩‍👧', description: 'Kid-friendly sights, parks & easy pacing' },
-  { id: 'backpacking', label: 'Backpacking', emoji: '🎒', description: 'Budget hostels, flexible routes & new friends' },
-  { id: 'photography', label: 'Photography', emoji: '📸', description: 'Golden hour spots, architecture & vistas' },
-  { id: 'wellness', label: 'Wellness', emoji: '🧘', description: 'Yoga retreats, hot springs & mindfulness' },
-  { id: 'business', label: 'Business', emoji: '💼', description: 'Efficient logistics, work hubs & transit' },
+  { id: 'leisure', label: 'Leisure', emoji: '🏖' },
+  { id: 'adventure', label: 'Adventure', emoji: '🏔' },
+  { id: 'food_culture', label: 'Cultural', emoji: '🏛' },
+  { id: 'romantic', label: 'Romantic', emoji: '❤️' },
 ];
 
 export const BasicDetailsStep: React.FC<BasicDetailsStepProps> = ({
@@ -51,14 +52,19 @@ export const BasicDetailsStep: React.FC<BasicDetailsStepProps> = ({
   destination,
   country,
   destinationImage,
+  cities = [],
   startDate,
   endDate,
+  arrivalLocation,
+  arrivalTime,
   adultsCount,
   childrenCount,
   tripType,
   errors,
   onUpdate,
 }) => {
+  const [isMultiCity, setIsMultiCity] = useState(cities.length > 1);
+
   // Today's date string for min date (YYYY-MM-DD)
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
 
@@ -88,10 +94,6 @@ export const BasicDetailsStep: React.FC<BasicDetailsStepProps> = ({
     <div className="space-y-8 animate-fadeIn">
       {/* Header */}
       <div>
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FFF2EE] text-[#FF6B4A] text-xs font-bold mb-2 border border-[#FFE0D6]">
-          <Sparkles className="w-3.5 h-3.5" />
-          <span>Step 01 / Basic Details</span>
-        </div>
         <h2 className="text-2xl sm:text-3xl font-extrabold text-[#17201D] tracking-tight">
           Where are you going?
         </h2>
@@ -126,18 +128,42 @@ export const BasicDetailsStep: React.FC<BasicDetailsStepProps> = ({
         )}
       </div>
 
-      {/* Field 2: Destination Search */}
-      <DestinationSearch
-        value={destination}
-        country={country}
-        imageUrl={destinationImage}
+      {/* Field 2: Multi-City or Single Destination Search */}
+      <MultiCitySelector
+        isMultiCity={isMultiCity}
+        onToggleMultiCity={(multi) => {
+          setIsMultiCity(multi);
+          if (!multi && cities.length > 0) {
+            onUpdate({
+              destination: cities[0].cityName,
+              country: cities[0].country,
+              cities: [cities[0]],
+            });
+          }
+        }}
+        primaryDestination={destination}
+        primaryCountry={country}
+        primaryImage={destinationImage}
+        cities={cities}
+        startDate={startDate}
+        endDate={endDate}
         error={errors.destination}
-        onSelect={(res) => {
+        onUpdatePrimary={(res) => {
           onUpdate({
             destination: res.name,
             country: res.country,
             destinationImage: res.imageUrl,
             destinationId: res.destinationId,
+            cities: [
+              { cityName: res.name, country: res.country, orderIndex: 0, stayDurationDays: 3 }
+            ],
+          });
+        }}
+        onUpdateCities={(newCities) => {
+          const primary = newCities[0];
+          onUpdate({
+            cities: newCities,
+            ...(primary ? { destination: primary.cityName, country: primary.country } : {}),
           });
         }}
       />
@@ -201,7 +227,46 @@ export const BasicDetailsStep: React.FC<BasicDetailsStepProps> = ({
         )}
       </div>
 
-      {/* Field 4: Traveller Selector */}
+      {/* Field 4: Arrival Details */}
+      <div className="space-y-3">
+        <div>
+          <label className="block text-xs font-bold uppercase tracking-wider text-[#4A5551]">
+            Arrival Details <span className="text-[#98A29F] font-normal normal-case">(Optional)</span>
+          </label>
+          <p className="text-xs text-[#68736F] mt-1">
+            Start your first day from the place and time you arrive.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_150px] gap-3">
+          <div className="space-y-1">
+            <label htmlFor="arrival-location" className="text-[11px] font-bold text-[#68736F] flex items-center gap-1">
+              Arrival point
+            </label>
+            <input
+              id="arrival-location"
+              type="text"
+              value={arrivalLocation}
+              onChange={(e) => onUpdate({ arrivalLocation: e.target.value })}
+              placeholder="e.g. Manali Bus Stand or Bhuntar Airport"
+              className="w-full px-3.5 py-2.5 rounded-2xl bg-white text-sm font-semibold text-[#17201D] border border-[#EAE6DD] hover:border-[#D1CCC2] focus:border-[#FF6B4A] focus:outline-none focus:ring-2 focus:ring-[#FF6B4A]/20"
+            />
+          </div>
+          <div className="space-y-1">
+            <label htmlFor="arrival-time" className="text-[11px] font-bold text-[#68736F] flex items-center gap-1">
+              Arrival time
+            </label>
+            <input
+              id="arrival-time"
+              type="time"
+              value={arrivalTime}
+              onChange={(e) => onUpdate({ arrivalTime: e.target.value })}
+              className="w-full px-3.5 py-2.5 rounded-2xl bg-white text-sm font-semibold text-[#17201D] border border-[#EAE6DD] hover:border-[#D1CCC2] focus:border-[#FF6B4A] focus:outline-none focus:ring-2 focus:ring-[#FF6B4A]/20"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Field 5: Traveller Selector */}
       <TravellerSelector
         adultsCount={adultsCount}
         childrenCount={childrenCount}
@@ -215,40 +280,28 @@ export const BasicDetailsStep: React.FC<BasicDetailsStepProps> = ({
           Trip Style & Theme <span className="text-[#FF6B4A]">*</span>
         </label>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
           {TRIP_TYPES.map((type) => {
             const isSelected = tripType === type.id;
             return (
-              <div
+              <motion.button
                 key={type.id}
+                type="button"
                 role="button"
-                tabIndex={0}
                 aria-pressed={isSelected}
                 onClick={() => onUpdate({ tripType: type.id })}
-                onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onUpdate({ tripType: type.id })}
-                className={`p-3 sm:p-3.5 rounded-2xl border-2 text-left cursor-pointer transition-all duration-150 flex flex-col justify-between ${
+                whileHover={{ scale: 1.02, y: -1 }}
+                whileTap={{ scale: 0.96 }}
+                className={`w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-full border text-sm font-bold cursor-pointer transition-all duration-150 ${
                   isSelected
-                    ? 'border-[#FF6B4A] bg-[#FFF2EE] shadow-sm shadow-[#FF6B4A]/15 scale-[1.01]'
-                    : 'border-[#EAE6DD] bg-white hover:border-[#D1CCC2] hover:bg-[#FAF9F5]'
+                    ? 'border-[#FF6B4A] bg-[#FFF2EE] text-[#E55837] shadow-sm shadow-[#FF6B4A]/15'
+                    : 'border-[#EAE6DD] bg-white text-[#4A5551] hover:border-[#FF6B4A]/50 hover:bg-[#FAF9F5]'
                 }`}
               >
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-xl sm:text-2xl" role="img" aria-hidden="true">
-                    {type.emoji}
-                  </span>
-                  {isSelected && (
-                    <span className="w-2 h-2 rounded-full bg-[#FF6B4A]" />
-                  )}
-                </div>
-                <div>
-                  <p className="text-xs sm:text-sm font-extrabold text-[#17201D]">
-                    {type.label}
-                  </p>
-                  <p className="text-[10px] text-[#68736F] line-clamp-1 mt-0.5">
-                    {type.description}
-                  </p>
-                </div>
-              </div>
+                <span role="img" aria-hidden="true">{type.emoji}</span>
+                <span>{type.label}</span>
+                {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-[#FF6B4A]" />}
+              </motion.button>
             );
           })}
         </div>

@@ -2,7 +2,7 @@
  * GlobeTrotter Smart Budget Service
  * 
  * Central persistence and data calculations for trip expenses,
- * category breakdowns, allocations, and live financial synchronization.
+ * category breakdowns, allocations, and live financial synchronization with PostgreSQL.
  */
 
 import { Trip } from '../types/trip';
@@ -23,6 +23,7 @@ import {
   DEFAULT_ALLOCATIONS,
 } from '../utils/budgetAllocator';
 import { calculateBudgetHealth } from '../utils/budgetHealthCalculator';
+import { apiRequest } from './apiClient';
 
 const EXPENSES_STORAGE_KEY_PREFIX = 'globetrotter_expenses';
 const ALLOCATIONS_STORAGE_KEY_PREFIX = 'globetrotter_budget_alloc';
@@ -41,8 +42,37 @@ const getAllocationsStorageKey = (userId?: string): string => {
 
 export const budgetService = {
   /**
-   * Retrieves all logged expenses across trips for a user
+   * Fetch expenses from PostgreSQL
    */
+  async fetchExpenses(tripId: string): Promise<Expense[]> {
+    try {
+      const serverExpenses = await apiRequest<any[]>(`/trips/${tripId}/expenses`);
+      if (Array.isArray(serverExpenses)) {
+        const mapped: Expense[] = serverExpenses.map((se) => ({
+          id: se.id,
+          tripId: se.tripId,
+          name: se.title || se.name || 'Expense',
+          category: (se.category?.toLowerCase() || 'other') as any,
+          amount: Number(se.amount) || 0,
+          currency: se.currency || 'INR',
+          date: se.date,
+          paymentMethod: se.paymentMethod || 'Credit Card',
+          notes: se.notes || '',
+          createdAt: se.createdAt ? new Date(se.createdAt).toISOString() : new Date().toISOString(),
+          updatedAt: se.updatedAt ? new Date(se.updatedAt).toISOString() : new Date().toISOString(),
+        }));
+
+        const all = this.getAllExpenses();
+        all[tripId] = mapped;
+        localStorage.setItem(getExpensesStorageKey(), JSON.stringify(all));
+        return mapped;
+      }
+      return this.getExpenses(tripId);
+    } catch {
+      return this.getExpenses(tripId);
+    }
+  },
+
   getAllExpenses(userId?: string): Record<string, Expense[]> {
     try {
       const key = getExpensesStorageKey(userId);
@@ -54,9 +84,6 @@ export const budgetService = {
     }
   },
 
-  /**
-   * Retrieves logged expenses for a specific trip
-   */
   getExpenses(tripId: string, userId?: string): Expense[] {
     const all = this.getAllExpenses(userId);
     return (all[tripId] || []).sort(
@@ -64,9 +91,6 @@ export const budgetService = {
     );
   },
 
-  /**
-   * Adds a new expense to a trip
-   */
   addExpense(
     expenseData: Omit<Expense, 'id' | 'createdAt' | 'updatedAt'>,
     userId?: string
@@ -76,9 +100,10 @@ export const budgetService = {
     const all = this.getAllExpenses(effectiveUserId);
     const tripExpenses = all[expenseData.tripId] || [];
 
+    const expId = `exp_${Date.now()}_${Math.random().toString(36).substr(2, 7)}`;
     const newExpense: Expense = {
       ...expenseData,
-      id: `exp_${Date.now()}_${Math.random().toString(36).substr(2, 7)}`,
+      id: expId,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -92,12 +117,26 @@ export const budgetService = {
       // storage fallback
     }
 
+    // Async persist to PostgreSQL
+    if (authService.isAuthenticated()) {
+      apiRequest(`/trips/${expenseData.tripId}/expenses`, {
+        method: 'POST',
+        body: JSON.stringify({
+          id: expId,
+          title: expenseData.name,
+          category: expenseData.category,
+          amount: expenseData.amount,
+          currency: expenseData.currency,
+          date: expenseData.date,
+          paymentMethod: expenseData.paymentMethod,
+          notes: expenseData.notes,
+        }),
+      }).catch((err) => console.log('Expense persist sync:', err.message));
+    }
+
     return newExpense;
   },
 
-  /**
-   * Updates an existing expense
-   */
   updateExpense(
     expenseId: string,
     updates: Partial<Expense>,
@@ -108,11 +147,13 @@ export const budgetService = {
     const all = this.getAllExpenses(effectiveUserId);
 
     let updatedExp: Expense | null = null;
+    let foundTripId: string | null = null;
 
     for (const tripId in all) {
       const list = all[tripId];
       const index = list.findIndex((e) => e.id === expenseId);
       if (index !== -1) {
+        foundTripId = tripId;
         updatedExp = {
           ...list[index],
           ...updates,
@@ -130,14 +171,27 @@ export const budgetService = {
       } catch {
         // storage fallback
       }
+
+      // Sync to PostgreSQL
+      if (authService.isAuthenticated() && !expenseId.startsWith('exp_temp')) {
+        apiRequest(`/expenses/${expenseId}`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            title: updates.name,
+            category: updates.category,
+            amount: updates.amount,
+            currency: updates.currency,
+            date: updates.date,
+            paymentMethod: updates.paymentMethod,
+            notes: updates.notes,
+          }),
+        }).catch((err) => console.log('Expense update sync:', err.message));
+      }
     }
 
     return updatedExp;
   },
 
-  /**
-   * Deletes an expense by ID
-   */
   deleteExpense(expenseId: string, userId?: string): { success: boolean; deletedExpense: Expense | null } {
     const currentUser = authService.getCurrentUser();
     const effectiveUserId = userId || currentUser?.id;
@@ -164,14 +218,18 @@ export const budgetService = {
       } catch {
         // storage fallback
       }
+
+      // Sync delete to PostgreSQL
+      if (authService.isAuthenticated() && !expenseId.startsWith('exp_temp')) {
+        apiRequest(`/expenses/${expenseId}`, {
+          method: 'DELETE',
+        }).catch((err) => console.log('Expense delete sync:', err.message));
+      }
     }
 
     return { success: found, deletedExpense };
   },
 
-  /**
-   * Retrieves or initializes category budget allocations (percentages summing to 100)
-   */
   getBudgetAllocations(
     tripId: string,
     trip: Trip,
@@ -192,14 +250,10 @@ export const budgetService = {
       // fallback
     }
 
-    // Default: auto allocate based on trip preferences
     const computed = autoAllocateBudget(trip);
     return computed;
   },
 
-  /**
-   * Saves custom category budget allocations
-   */
   saveBudgetAllocations(
     tripId: string,
     allocations: Record<ExpenseCategory, number>,
@@ -214,15 +268,26 @@ export const budgetService = {
 
       all[tripId] = allocations;
       localStorage.setItem(key, JSON.stringify(all));
+
+      // Persist to PostgreSQL
+      if (authService.isAuthenticated()) {
+        const allocArray = Object.entries(allocations).map(([category, percentage]) => ({
+          category,
+          percentage,
+        }));
+
+        apiRequest(`/trips/${tripId}/budget`, {
+          method: 'PUT',
+          body: JSON.stringify({ allocations: allocArray }),
+        }).catch((err) => console.log('Budget allocation sync:', err.message));
+      }
+
       return true;
     } catch {
       return false;
     }
   },
 
-  /**
-   * Computes estimated costs dynamically by category from Itinerary + Trip Baseline
-   */
   getCategoryEstimates(
     trip: Trip,
     itinerary: Itinerary | null
@@ -236,7 +301,6 @@ export const budgetService = {
       miscellaneous: 0,
     };
 
-    // 1. Gather all scheduled and unscheduled itinerary activities
     let itinActivitiesCost = 0;
     let itinFoodCost = 0;
     let itinHotelCost = 0;
@@ -254,13 +318,11 @@ export const budgetService = {
         } else if (act.category === 'hotel') {
           itinHotelCost += cost;
         } else {
-          // 'place' or 'experience'
           itinActivitiesCost += cost;
         }
       }
     }
 
-    // 2. Base estimation from trip estimator
     const baseBreakdown = estimateTripCost({
       destination: trip.destination,
       country: trip.country,
@@ -272,7 +334,6 @@ export const budgetService = {
       currency: trip.currency,
     });
 
-    // Merge baseline with itinerary
     estimates.accommodation = itinHotelCost > 0 ? itinHotelCost : baseBreakdown.accommodationEstimate;
     estimates.food = itinFoodCost > 0 ? itinFoodCost : Math.round(baseBreakdown.activitiesFoodEstimate * 0.55);
     estimates.activities = itinActivitiesCost > 0 ? itinActivitiesCost : Math.round(baseBreakdown.activitiesFoodEstimate * 0.45);
@@ -283,17 +344,11 @@ export const budgetService = {
     return estimates;
   },
 
-  /**
-   * Computes total estimated trip cost
-   */
   getEstimatedCost(trip: Trip, itinerary: Itinerary | null): number {
     const estimates = this.getCategoryEstimates(trip, itinerary);
     return (Object.values(estimates) as number[]).reduce((a: number, b: number) => a + b, 0);
   },
 
-  /**
-   * Computes actual spending by category from logged expenses
-   */
   getCategoryActuals(expenses: Expense[]): Record<ExpenseCategory, number> {
     const actuals: Record<ExpenseCategory, number> = {
       accommodation: 0,
@@ -315,9 +370,6 @@ export const budgetService = {
     return actuals;
   },
 
-  /**
-   * Returns full category summaries with Budget, Estimated, Actual, Remaining, Progress
-   */
   getCategorySummaries(
     trip: Trip,
     itinerary: Itinerary | null,
@@ -343,8 +395,9 @@ export const budgetService = {
       const budgetAmount = Math.round((totalBudget * allocPct) / 100);
       const estimated = categoryEstimates[cat] || 0;
       const actual = categoryActuals[cat] || 0;
-      const remaining = budgetAmount - actual;
-      const percentageSpent = budgetAmount > 0 ? Math.round((actual / budgetAmount) * 100) : 0;
+      const committed = Math.max(estimated, actual);
+      const remaining = budgetAmount - committed;
+      const percentageSpent = budgetAmount > 0 ? Math.round((committed / budgetAmount) * 100) : 0;
 
       return {
         category: cat,
@@ -357,18 +410,14 @@ export const budgetService = {
         remaining,
         percentageOfBudget: allocPct,
         percentageSpent,
-        isOverBudget: actual > budgetAmount,
+        isOverBudget: remaining < 0,
       };
     });
   },
 
-  /**
-   * Returns timeline points for spending by date
-   */
   getDailySpendTimeline(trip: Trip, expenses: Expense[]): DailySpendPoint[] {
     if (expenses.length === 0) return [];
 
-    // Group expenses by date
     const dateMap: Record<string, { total: number; count: number }> = {};
     expenses.forEach((e) => {
       if (!dateMap[e.date]) {
@@ -402,9 +451,6 @@ export const budgetService = {
     });
   },
 
-  /**
-   * Builds the comprehensive BudgetSnapshot for a trip
-   */
   getBudgetSnapshot(
     trip: Trip,
     itinerary: Itinerary | null,
@@ -414,10 +460,11 @@ export const budgetService = {
     const totalBudget = trip.budget || 50000;
     const estimatedCost = this.getEstimatedCost(trip, itinerary);
     const actualSpent = expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
-    const remaining = totalBudget - actualSpent;
-    const percentageSpent = totalBudget > 0 ? Math.round((actualSpent / totalBudget) * 100) : 0;
+    const committedCost = Math.max(estimatedCost, actualSpent);
+    const remaining = totalBudget - committedCost;
+    const percentageSpent = totalBudget > 0 ? Math.round((committedCost / totalBudget) * 100) : 0;
 
-    const projectedCost = actualSpent + Math.max(0, estimatedCost - actualSpent);
+    const projectedCost = committedCost;
     const projectedBuffer = totalBudget - projectedCost;
 
     const categoryActuals = this.getCategoryActuals(expenses);

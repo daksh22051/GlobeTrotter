@@ -1,25 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'motion/react';
 import { Sidebar } from '../components/dashboard/Sidebar';
 import { Header } from '../components/dashboard/Header';
 import { MobileBottomNav } from '../components/dashboard/MobileBottomNav';
 import { PersonalizedHero } from '../components/dashboard/PersonalizedHero';
 import { QuickActions } from '../components/dashboard/QuickActions';
-import { TravelSnapshot } from '../components/dashboard/TravelSnapshot';
 import { UpcomingTripsSection } from '../components/dashboard/UpcomingTripsSection';
-import { AIInsightCard } from '../components/dashboard/AIInsightCard';
 import { RecommendedDestinations } from '../components/dashboard/RecommendedDestinations';
-import { BudgetHealthWidgets } from '../components/dashboard/BudgetHealthWidgets';
-import { TravelInspirationStrip } from '../components/dashboard/TravelInspirationStrip';
 import { DestinationSearchModal } from '../components/dashboard/DestinationSearchModal';
 
 import { authService } from '../services/authService';
 import { profileService } from '../services/profileService';
 import { tripService } from '../services/tripService';
+import { migrationService } from '../services/migrationService';
 import { recommendationService, ScoredDestination } from '../services/recommendationService';
 import { User } from '../types';
 import { UserPreferences, CurrencyCode } from '../types/profile';
-import { Trip, TripStats } from '../types/trip';
+import { Trip } from '../types/trip';
+import { getNextUpcomingTrip } from '../utils/tripStatus';
 
 export const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
@@ -28,12 +27,6 @@ export const DashboardPage: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [preferences, setPreferences] = useState<UserPreferences | null>(null);
   const [trips, setTrips] = useState<Trip[]>([]);
-  const [tripStats, setTripStats] = useState<TripStats>({
-    tripsPlanned: 0,
-    countriesVisited: 0,
-    citiesExplored: 0,
-    preferredBudget: 50000,
-  });
   const [recommendations, setRecommendations] = useState<ScoredDestination[]>([]);
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -53,12 +46,16 @@ export const DashboardPage: React.FC = () => {
       profileService.getDefaultPreferences(user.id);
     setPreferences(prefs);
 
-    // 3. Load Trips & Stats
+    // 3. Load Trips & Stats (from local cache then background refresh)
     const userTrips = tripService.getUserTrips(user.id);
     setTrips(userTrips);
 
-    const stats = tripService.getTripStats(user.id);
-    setTripStats(stats);
+    // Asynchronously fetch fresh data from PostgreSQL and run migration if needed
+    migrationService.runMigration(user.id).then(() => {
+      tripService.fetchTrips(user.id).then((freshTrips) => {
+        setTrips(freshTrips);
+      });
+    });
 
     // 4. Compute Personalized Recommendations
     const recs = recommendationService.getRecommendations(prefs, 4);
@@ -85,6 +82,10 @@ export const DashboardPage: React.FC = () => {
   };
 
   const activeCurrency: CurrencyCode = preferences?.currency || 'INR';
+  const dashboardTrips = useMemo(() => {
+    const nextTrip = getNextUpcomingTrip(trips);
+    return nextTrip ? [nextTrip] : trips.slice(0, 2);
+  }, [trips]);
 
   if (isLoading) {
     return (
@@ -95,7 +96,12 @@ export const DashboardPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen w-full bg-[#FFFDF8] flex text-[#17201D] antialiased">
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: 'easeOut' }}
+      className="min-h-screen w-full bg-[#FFFDF8] flex text-[#17201D] antialiased"
+    >
       {/* 1. Desktop Persistent Sidebar */}
       <Sidebar currentUser={currentUser} onLogout={handleLogout} />
 
@@ -121,10 +127,10 @@ export const DashboardPage: React.FC = () => {
           />
 
           {/* Section 2: Quick Actions ("Start Planning") */}
-          <QuickActions tripCount={trips.length} />
+          <QuickActions />
 
           {/* Section 3: Upcoming Trips & Clean Zero State */}
-          <UpcomingTripsSection trips={trips} />
+          <UpcomingTripsSection trips={dashboardTrips} />
 
           {/* Section 4: Picked For You (Recommended Destinations) */}
           <RecommendedDestinations
@@ -132,20 +138,7 @@ export const DashboardPage: React.FC = () => {
             currency={activeCurrency}
           />
 
-          {/* Section 5: Travel Snapshot Metrics */}
-          <TravelSnapshot
-            stats={tripStats}
-            currency={activeCurrency}
-          />
 
-          {/* Section 6: AI Travel Insight Card */}
-          <AIInsightCard preferences={preferences} />
-
-          {/* Section 7: Budget & Trip Health Readiness Widgets */}
-          <BudgetHealthWidgets preferences={preferences} />
-
-          {/* Section 8: Travel Inspiration Editorial Strip */}
-          <TravelInspirationStrip />
         </main>
       </div>
 
@@ -158,6 +151,6 @@ export const DashboardPage: React.FC = () => {
         onClose={() => setIsSearchOpen(false)}
         currency={activeCurrency}
       />
-    </div>
+    </motion.div>
   );
 };

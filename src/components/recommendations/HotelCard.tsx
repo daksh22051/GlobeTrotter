@@ -1,7 +1,8 @@
 import React from 'react';
-import { Star, MapPin, Building2, Bookmark, Check, Plus, Sparkles, Quote, Wifi } from 'lucide-react';
+import { Star, MapPin, Building2, Bookmark, Check, Plus, Quote, Wifi } from 'lucide-react';
 import { Recommendation } from '../../types/recommendation';
 import { formatCurrency } from '../../utils/currency';
+import { getActivityImage, handleActivityImageError } from '../../utils/activityImage';
 
 interface HotelCardProps {
   item: Recommendation;
@@ -26,17 +27,17 @@ export const HotelCard: React.FC<HotelCardProps> = ({
       {/* Image Container */}
       <div className="relative h-48 sm:h-52 w-full overflow-hidden bg-[#202725]">
         <img
-          src={item.image}
+          src={getActivityImage(item)}
           alt={item.name}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           loading="lazy"
+          onError={(event) => handleActivityImageError(event, item.category)}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20" />
 
         {/* Top Badges */}
         <div className="absolute top-3 left-3 right-3 flex items-center justify-between z-10">
           <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-black/75 backdrop-blur-md border border-white/20 text-white text-xs font-black shadow-xs">
-            <Sparkles className="w-3 h-3 text-[#20B8A6]" />
             <span className="text-[#20B8A6]">{item.matchScore}%</span>
             <span className="text-[10px] text-white/80 font-normal">Match</span>
           </div>

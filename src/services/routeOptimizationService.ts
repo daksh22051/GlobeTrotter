@@ -5,7 +5,7 @@
  */
 
 import { Itinerary, ItineraryDay, ItineraryActivity } from '../types/itinerary';
-import { locationService } from '../services/locationService';
+import { locationService } from './locationService';
 import { calculateDayRouteSegments } from '../utils/routeCalculator';
 
 export interface RouteOptimizationOutput {

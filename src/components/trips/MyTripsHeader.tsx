@@ -1,17 +1,19 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, LayoutGrid, List, Sparkles, Compass } from 'lucide-react';
+import { Plus, LayoutGrid, List, Trash2 } from 'lucide-react';
 
 interface MyTripsHeaderProps {
   viewMode: 'grid' | 'list';
   onViewModeChange: (mode: 'grid' | 'list') => void;
   totalTripsCount: number;
+  onClearAll: () => void;
 }
 
 export const MyTripsHeader: React.FC<MyTripsHeaderProps> = ({
   viewMode,
   onViewModeChange,
   totalTripsCount,
+  onClearAll,
 }) => {
   const navigate = useNavigate();
 
@@ -19,15 +21,6 @@ export const MyTripsHeader: React.FC<MyTripsHeaderProps> = ({
     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-[#EAE6DD]">
       {/* Title & Description */}
       <div>
-        <div className="flex items-center gap-2 mb-1">
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-[#FFF2EE] text-[#FF6B4A] border border-[#FFD9CE]">
-            <Compass className="w-3 h-3" />
-            Personal Travel Command Center
-          </span>
-          <span className="text-xs font-semibold text-[#8C9B95]">
-            {totalTripsCount} {totalTripsCount === 1 ? 'journey' : 'journeys'} recorded
-          </span>
-        </div>
         <h1 className="text-2xl sm:text-3xl font-extrabold text-[#17201D] tracking-tight">
           My Trips
         </h1>
@@ -79,6 +72,17 @@ export const MyTripsHeader: React.FC<MyTripsHeaderProps> = ({
           <Plus className="w-4 h-4 stroke-[2.5]" />
           <span>Plan New Trip</span>
         </button>
+        {totalTripsCount > 0 && (
+          <button
+            type="button"
+            onClick={onClearAll}
+            className="inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-2xl bg-white hover:bg-[#FFF0F0] border border-[#EAE6DD] hover:border-[#FDB8B8] text-[#C72E33] text-xs font-bold transition-colors cursor-pointer"
+            title="Remove all saved trips"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Remove All</span>
+          </button>
+        )}
       </div>
     </div>
   );

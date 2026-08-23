@@ -11,6 +11,12 @@ import {
   Compass,
   MapPin,
   Sparkles,
+  Home,
+  Briefcase,
+  PlusCircle,
+  Globe2,
+  Menu,
+  X,
 } from 'lucide-react';
 import { User } from '../../types';
 
@@ -60,6 +66,7 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, onLogout, onOpenSea
   const navigate = useNavigate();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>(INITIAL_NOTIFICATIONS);
 
   const notifRef = useRef<HTMLDivElement>(null);
@@ -80,9 +87,9 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, onLogout, onOpenSea
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
   };
 
-  // Close menus on outside click
+  // Close open menus when focus moves outside or Escape is pressed.
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
+    const handlePointerDownOutside = (e: PointerEvent) => {
       if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
         setShowNotifications(false);
       }
@@ -90,8 +97,18 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, onLogout, onOpenSea
         setShowProfileMenu(false);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowNotifications(false);
+        setShowProfileMenu(false);
+      }
+    };
+    document.addEventListener('pointerdown', handlePointerDownOutside);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDownOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
   }, []);
 
   const userInitials = (firstName || 'TR').slice(0, 2).toUpperCase();
@@ -105,8 +122,19 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, onLogout, onOpenSea
       <div className="min-w-0">
         <div className="flex items-center gap-2">
           {/* Mobile Logo Brand icon */}
-          <div className="md:hidden w-8 h-8 rounded-xl bg-gradient-to-tr from-[#FF6B4A] to-[#FF8E72] flex items-center justify-center text-white shrink-0 shadow-xs">
-            <Compass className="w-4 h-4" />
+          <div className="md:hidden flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setShowMobileMenu((previous) => !previous)}
+              className="p-2 rounded-xl text-[#4A5551] hover:bg-[#F4F1EA] transition-colors cursor-pointer"
+              aria-label={showMobileMenu ? 'Close navigation menu' : 'Open navigation menu'}
+              aria-expanded={showMobileMenu}
+            >
+              {showMobileMenu ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+            </button>
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#FF6B4A] to-[#FF8E72] flex items-center justify-center text-white shrink-0 shadow-xs">
+              <Compass className="w-4 h-4" />
+            </div>
           </div>
           <div>
             <h1 className="text-base sm:text-lg lg:text-xl font-extrabold text-[#17201D] tracking-tight truncate flex items-center gap-1.5">
@@ -143,7 +171,7 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, onLogout, onOpenSea
           <button
             type="button"
             onClick={() => {
-              setShowNotifications(!showNotifications);
+              setShowNotifications((previous) => !previous);
               setShowProfileMenu(false);
             }}
             className={`relative p-2.5 rounded-2xl border transition-all cursor-pointer ${
@@ -153,6 +181,7 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, onLogout, onOpenSea
             }`}
             aria-label="Notifications"
             aria-expanded={showNotifications}
+            aria-controls="notifications-popover"
           >
             <Bell className="w-4.5 h-4.5" />
             {unreadCount > 0 && (
@@ -162,7 +191,7 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, onLogout, onOpenSea
 
           {/* Notifications Popover */}
           {showNotifications && (
-            <div className="absolute right-0 mt-2 w-80 sm:w-92 bg-white rounded-3xl border border-[#EAE6DD] shadow-xl p-4 z-50 animate-in fade-in zoom-in-95 duration-150">
+            <div id="notifications-popover" role="dialog" aria-label="Notifications" className="absolute right-0 mt-2 w-80 sm:w-92 bg-white rounded-3xl border border-[#EAE6DD] shadow-xl p-4 z-50 animate-in fade-in zoom-in-95 duration-150">
               <div className="flex items-center justify-between pb-3 border-b border-[#F4F1EA] mb-3">
                 <div className="flex items-center gap-2">
                   <span className="font-bold text-sm text-[#17201D]">Notifications</span>
@@ -298,6 +327,37 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, onLogout, onOpenSea
           )}
         </div>
       </div>
+
+      {showMobileMenu && (
+        <div className="md:hidden absolute top-full left-0 right-0 bg-white border-b border-[#EAE6DD] shadow-lg p-3 z-40 animate-in fade-in slide-in-from-top-2 duration-150">
+          <nav className="grid grid-cols-2 gap-2" aria-label="Mobile navigation">
+            {[
+              { label: 'Home', path: '/dashboard', icon: Home },
+              { label: 'My Trips', path: '/trips', icon: Briefcase },
+              { label: 'Explore', path: '/explore', icon: Globe2 },
+              { label: 'Plan New Trip', path: '/plan-trip', icon: PlusCircle },
+              { label: 'Profile', path: '/profile', icon: UserIcon },
+              { label: 'Settings', path: '/settings', icon: Settings },
+            ].map((item) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.path}
+                  type="button"
+                  onClick={() => {
+                    setShowMobileMenu(false);
+                    navigate(item.path);
+                  }}
+                  className="flex items-center gap-2 rounded-xl border border-[#EAE6DD] bg-[#FCFBF8] px-3 py-2.5 text-left text-xs font-bold text-[#4A5551] hover:border-[#FFB09B] hover:bg-[#FFF2EE] hover:text-[#17201D] transition-colors cursor-pointer"
+                >
+                  <Icon className="w-4 h-4 text-[#FF6B4A]" />
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+      )}
     </header>
   );
 };

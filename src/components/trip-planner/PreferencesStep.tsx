@@ -2,15 +2,15 @@ import React from 'react';
 import { CurrencyCode, BudgetStyle, TravelStyle } from '../../types/profile';
 import { TransportPreference, AccommodationStyle } from '../../types/trip';
 import { BudgetSelector } from './BudgetSelector';
-import { Sparkles, Check, Compass, Car, Hotel } from 'lucide-react';
+import { Sparkles, Check } from 'lucide-react';
 
 interface PreferencesStepProps {
   budget: number;
   currency: CurrencyCode;
-  budgetStyle: BudgetStyle;
-  travelPace: TravelStyle;
+  budgetStyle?: BudgetStyle;
+  travelPace?: TravelStyle;
   transportPreferences: TransportPreference[];
-  accommodationStyle: AccommodationStyle;
+  accommodationStyle?: AccommodationStyle;
   onUpdate: (updates: Partial<{
     budget: number;
     currency: CurrencyCode;
@@ -58,11 +58,9 @@ const TRANSPORT_OPTIONS: {
   subtitle: string;
 }[] = [
   { id: 'flights', label: 'Flights', emoji: '✈️', subtitle: 'Fast aerial connections' },
-  { id: 'train', label: 'Scenic Trains', emoji: '🚆', subtitle: 'Railways & high-speed lines' },
-  { id: 'road_trip', label: 'Road Trip', emoji: '🚗', subtitle: 'Rental cars & scenic drives' },
-  { id: 'bus', label: 'Intercity Bus', emoji: '🚌', subtitle: 'Budget transit & shuttles' },
-  { id: 'walking', label: 'Local / Walking', emoji: '🚶', subtitle: 'Metro, walking & bikes' },
-  { id: 'mixed', label: 'Mixed Transit', emoji: '🚕', subtitle: 'Flexible multimodal travel' },
+  { id: 'train', label: 'Trains', emoji: '🚆', subtitle: 'Railways & high-speed lines' },
+  { id: 'road_trip', label: 'Cabs / Private Car', emoji: '🚗', subtitle: 'Private rides & scenic drives' },
+  { id: 'bus', label: 'Public Transit', emoji: '🚌', subtitle: 'Metro, buses & shuttles' },
 ];
 
 const ACCOMMODATION_STYLES: {
@@ -71,12 +69,9 @@ const ACCOMMODATION_STYLES: {
   emoji: string;
   subtitle: string;
 }[] = [
-  { id: 'boutique_hotel', label: 'Boutique Hotel', emoji: '🌿', subtitle: 'Unique design & local character' },
-  { id: 'resort', label: 'Resort & Spa', emoji: '🏖', subtitle: 'Full-service wellness amenities' },
-  { id: 'luxury_hotel', label: 'Luxury 5-Star', emoji: '👑', subtitle: 'Premium hospitality & concierges' },
-  { id: 'apartment', label: 'Apartment / Villa', emoji: '🏢', subtitle: 'Private kitchen & spacious comfort' },
-  { id: 'budget_hotel', label: 'Budget Hotel', emoji: '🏨', subtitle: 'Clean, reliable & cost-effective' },
-  { id: 'hostel', label: 'Hostel / Coliving', emoji: '🎒', subtitle: 'Social vibes & budget dorms' },
+  { id: 'budget_hotel', label: 'Budget', emoji: '🏨', subtitle: 'Clean, reliable & cost-effective' },
+  { id: 'boutique_hotel', label: 'Comfort / Hotel', emoji: '🌿', subtitle: 'Comfortable stays with local character' },
+  { id: 'luxury_hotel', label: 'Luxury', emoji: '👑', subtitle: 'Premium hospitality & concierge service' },
 ];
 
 export const PreferencesStep: React.FC<PreferencesStepProps> = ({
@@ -88,16 +83,8 @@ export const PreferencesStep: React.FC<PreferencesStepProps> = ({
   accommodationStyle,
   onUpdate,
 }) => {
-  const toggleTransport = (opt: TransportPreference) => {
-    const exists = transportPreferences.includes(opt);
-    let updated: TransportPreference[];
-    if (exists) {
-      if (transportPreferences.length === 1) return; // Keep at least one
-      updated = transportPreferences.filter((t) => t !== opt);
-    } else {
-      updated = [...transportPreferences, opt];
-    }
-    onUpdate({ transportPreferences: updated });
+  const selectTransport = (opt: TransportPreference) => {
+    onUpdate({ transportPreferences: [opt] });
   };
 
   return (
@@ -123,8 +110,6 @@ export const PreferencesStep: React.FC<PreferencesStepProps> = ({
           currency={currency}
           budgetStyle={budgetStyle}
           onBudgetChange={(amount) => onUpdate({ budget: amount })}
-          onCurrencyChange={(curr) => onUpdate({ currency: curr })}
-          onBudgetStyleChange={(style) => onUpdate({ budgetStyle: style })}
         />
       </div>
 
@@ -182,20 +167,20 @@ export const PreferencesStep: React.FC<PreferencesStepProps> = ({
           <label className="block text-xs font-bold uppercase tracking-wider text-[#4A5551]">
             How do you prefer to get around?
           </label>
-          <span className="text-[11px] font-semibold text-[#68736F]">Select multiple</span>
+          <span className="text-[11px] font-semibold text-[#68736F]">Select one primary mode</span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
           {TRANSPORT_OPTIONS.map((opt) => {
             const isSelected = transportPreferences.includes(opt.id);
             return (
               <div
                 key={opt.id}
-                role="button"
+                role="radio"
                 tabIndex={0}
-                aria-pressed={isSelected}
-                onClick={() => toggleTransport(opt.id)}
-                onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && toggleTransport(opt.id)}
+                aria-checked={isSelected}
+                onClick={() => selectTransport(opt.id)}
+                onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && selectTransport(opt.id)}
                 className={`p-3 sm:p-3.5 rounded-2xl border-2 text-left cursor-pointer transition-all duration-150 flex items-center gap-3 ${
                   isSelected
                     ? 'border-[#20B8A6] bg-[#EDFAF7] shadow-xs'
@@ -230,7 +215,7 @@ export const PreferencesStep: React.FC<PreferencesStepProps> = ({
           Where would you like to stay?
         </label>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
           {ACCOMMODATION_STYLES.map((style) => {
             const isSelected = accommodationStyle === style.id;
             return (

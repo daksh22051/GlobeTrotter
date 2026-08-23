@@ -46,6 +46,17 @@ export type TravelPersonality =
   | 'relaxer'
   | 'photographer';
 
+export type AccommodationPreference = 'budget' | 'comfort' | 'premium' | 'luxury';
+
+export type TransportStylePreference =
+  | 'walking'
+  | 'public_transport'
+  | 'train'
+  | 'bus'
+  | 'rental_car'
+  | 'taxi'
+  | 'flight';
+
 export interface UserPreferences {
   userId?: string;
   interests: TravelInterest[];
@@ -56,6 +67,10 @@ export interface UserPreferences {
   currency: CurrencyCode;
   travelCompanion: TravelCompanion;
   travelPersonality: TravelPersonality;
+  accommodationPreference?: AccommodationPreference;
+  transportPreference?: TransportStylePreference;
+  bio?: string;
+  languagePreference?: string;
   isComplete: boolean;
   updatedAt: string;
 }

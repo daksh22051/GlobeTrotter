@@ -2,6 +2,11 @@ import React, { useState } from 'react';
 import { X, ArrowRightLeft, Layers, Calendar, Clock } from 'lucide-react';
 import { ItineraryActivity, ItineraryDay } from '../../types/itinerary';
 
+const formatDayTitle = (day: ItineraryDay): string => {
+  const title = day.title || day.dateDisplay || '';
+  return title.replace(/^Day\s+\d+\s*:\s*/i, '');
+};
+
 interface MoveActivityModalProps {
   isOpen: boolean;
   activity: ItineraryActivity | null;
@@ -109,7 +114,7 @@ export const MoveActivityModal: React.FC<MoveActivityModalProps> = ({
                   <div className="flex items-center gap-2">
                     <Calendar className="w-4 h-4 text-[#FF6B4A]" />
                     <span>
-                      Day {d.dayNumber}: {d.title || d.dateDisplay}
+                      Day {d.dayNumber}: {formatDayTitle(d)}
                     </span>
                   </div>
                   <span className="text-[10px] opacity-75">

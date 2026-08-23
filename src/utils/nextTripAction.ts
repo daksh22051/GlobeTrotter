@@ -55,12 +55,12 @@ export function determineNextTripAction(trip: Trip): NextTripAction {
     const savedRecs = trip.savedRecommendationIds?.length || 0;
     if (savedRecs === 0) {
       return {
-        label: 'Discover AI recommendations for your destination',
-        ctaText: 'Explore Recommendations',
-        description: 'Browse top-rated sights, dining, and cultural highlights.',
-        route: `/trip/${trip.id}/recommendations`,
+        label: 'Build your day-by-day itinerary',
+        ctaText: 'Build Itinerary',
+        description: 'Start with a personalized workspace for your destination, budget, and travel style.',
+        route: `/trip/${trip.id}/itinerary`,
         priority: 'high',
-        category: 'recommendations',
+        category: 'itinerary',
       };
     }
 
