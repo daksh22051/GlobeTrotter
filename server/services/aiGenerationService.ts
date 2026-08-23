@@ -82,9 +82,9 @@ export class AIGenerationService {
         : undefined;
 
       if (existingDay && Array.isArray(existingDay.activities) && existingDay.activities.length > 0) {
-        const activities = this.dedupeActivities(existingDay.activities).map((a: any) => ({
+        const activities = this.scheduleDayActivities(this.ensureDayDiversity(this.dedupeActivities(existingDay.activities).map((a: any) => ({
           title: a.title || 'Activity',
-          category: a.category || 'place',
+          category: this.normalizeCategory(a.category),
           startTime: a.startTime || '10:00',
           durationMinutes: Number(a.durationMinutes) || 120,
           cost: Number(a.cost) || 500,
@@ -93,7 +93,7 @@ export class AIGenerationService {
           notes: a.notes || '',
           latitude: typeof a.latitude === 'number' && !isNaN(a.latitude) ? a.latitude : undefined,
           longitude: typeof a.longitude === 'number' && !isNaN(a.longitude) ? a.longitude : undefined,
-        }));
+        })), fallbackDay, trip), trip);
 
         days.push({
           dayNumber: dayNum,
@@ -121,10 +121,11 @@ export class AIGenerationService {
           dayNumber: dayNum,
           title: fallbackDay?.title || `Day ${dayNum}`,
           theme: fallbackDay?.theme,
-          activities: this.ensureDayCoverage(fallbackActivitiesForDay.map((a: any) => ({
+          activities: this.scheduleDayActivities(this.ensureDayDiversity(fallbackActivitiesForDay.map((a: any) => ({
             ...a,
+            category: this.normalizeCategory(a.category),
             currency: trip.currency || 'INR',
-          })), fallbackDay || { activities: fallbackActivitiesForDay }, trip)
+          })), fallbackDay || { activities: fallbackActivitiesForDay }, trip), trip)
         });
       }
     }
@@ -138,6 +139,65 @@ export class AIGenerationService {
       if (!key || seen.has(key)) return false;
       seen.add(key);
       return true;
+    });
+  }
+
+  private normalizeCategory(category: unknown): string {
+    const normalized = String(category || '').trim().toLowerCase();
+    if (normalized.includes('food') || normalized.includes('dining') || normalized.includes('meal')) return 'food';
+    if (normalized.includes('hotel') || normalized.includes('stay') || normalized.includes('accommodation')) return 'hotel';
+    if (normalized.includes('experience') || normalized.includes('activity') || normalized.includes('adventure')) return 'experience';
+    return 'place';
+  }
+
+  private ensureDayDiversity(activities: any[], fallbackDay: any, trip: any): any[] {
+    const normalized = activities.map((activity) => ({
+      ...activity,
+      category: this.normalizeCategory(activity.category),
+    }));
+    const meals = normalized.filter((activity) => activity.category === 'food').slice(0, 2);
+    const nonMeals = normalized.filter((activity) => activity.category !== 'food');
+    const fallbackActivities = Array.isArray(fallbackDay?.activities) ? fallbackDay.activities : [];
+    const additions = fallbackActivities
+      .filter((activity) => this.normalizeCategory(activity.category) !== 'food')
+      .filter((activity) => !nonMeals.some((existing) => existing.title === activity.title))
+      .slice(0, Math.max(0, 2 - nonMeals.length))
+      .map((activity) => ({ ...activity, category: this.normalizeCategory(activity.category), currency: trip.currency || 'INR' }));
+
+    return this.ensureDayCoverage([...nonMeals, ...additions, ...meals], fallbackDay, trip);
+  }
+
+  private scheduleDayActivities(activities: any[], trip: any): any[] {
+    const unique = this.dedupeActivities(activities).map((activity) => ({
+      ...activity,
+      category: this.normalizeCategory(activity.category),
+      durationMinutes: Math.max(30, Number(activity.durationMinutes) || 90),
+    }));
+    const meals = unique.filter((activity) => activity.category === 'food').slice(0, 2);
+    const nonMeals = unique.filter((activity) => activity.category !== 'food');
+    const ordered = [
+      ...nonMeals.slice(0, 1),
+      ...(meals.slice(0, 1)),
+      ...nonMeals.slice(1),
+      ...(meals.slice(1, 2)),
+    ];
+    let nextMinute = 9 * 60 + 30;
+    return ordered.map((activity) => {
+      let startMinute: number;
+      if (activity.category === 'food') {
+        startMinute = meals.indexOf(activity) === 0 ? 12 * 60 + 30 : 19 * 60 + 30;
+      } else {
+        if (nextMinute >= 12 * 60) nextMinute = 14 * 60 + 30;
+        if (nextMinute >= 19 * 60) nextMinute = 16 * 60;
+        startMinute = nextMinute;
+      }
+      const scheduled = {
+        ...activity,
+        startTime: `${Math.floor(startMinute / 60).toString().padStart(2, '0')}:${(startMinute % 60).toString().padStart(2, '0')}`,
+        currency: activity.currency || trip.currency || 'INR',
+      };
+      if (activity.category !== 'food') nextMinute = startMinute + activity.durationMinutes + 30;
+      return scheduled;
     });
   }
 
@@ -246,7 +306,8 @@ export class AIGenerationService {
        - 'location': Specific neighborhood, landmark, or venue name.
        - 'notes': 1-2 sentence description.
     4. Variety is key: avoid repetition across days. Every activity title must be unique and authentic to ${trip.destination}. If verified city activities are listed above, use them as the source of truth and do not invent locations in another city.
-    5. Return ONLY a valid JSON object matching this structure:
+    5. Each day must include at least two non-dining activities (sightseeing, culture, or local experiences) and no more than two food/dining activities. Never place consecutive restaurant or meal stops when a landmark or experience is available.
+    6. Return ONLY a valid JSON object matching this structure:
     {
       "days": [
         {

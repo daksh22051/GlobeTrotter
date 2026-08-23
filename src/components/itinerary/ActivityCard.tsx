@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { motion, useMotionValue, useTransform } from 'motion/react';
+import { motion } from 'motion/react';
 import {
   GripVertical,
   MapPin,
@@ -49,10 +49,6 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const pointerX = useMotionValue(0.5);
-  const pointerY = useMotionValue(0.5);
-  const rotateX = useTransform(pointerY, [0, 1], [4, -4]);
-  const rotateY = useTransform(pointerX, [0, 1], [-4, 4]);
 
   // Close menu on click outside
   React.useEffect(() => {
@@ -127,28 +123,14 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
     onDragEnd(e);
   };
 
-  const handlePointerMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    const bounds = e.currentTarget.getBoundingClientRect();
-    pointerX.set((e.clientX - bounds.left) / bounds.width);
-    pointerY.set((e.clientY - bounds.top) / bounds.height);
-  };
-
-  const resetPointer = () => {
-    pointerX.set(0.5);
-    pointerY.set(0.5);
-  };
-
   return (
     <motion.div
       draggable
       onDragStart={handleDragStartInternal}
       onDragEnd={handleDragEndInternal}
-      onMouseMove={handlePointerMove}
-      onMouseLeave={resetPointer}
       initial={{ opacity: 0, y: 14, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.4, delay: Math.min(index * 0.06, 0.36), ease: 'easeOut' }}
-      style={{ rotateX, rotateY, transformPerspective: 1000 }}
       className={`group relative rounded-2xl border bg-white/95 backdrop-blur-sm transition-[border-color,box-shadow,opacity] duration-200 ${
         conflict
           ? conflict.severity === 'error'
@@ -282,7 +264,7 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
             </button>
 
             {isMenuOpen && (
-              <div className="absolute right-0 top-full mt-1.5 w-44 bg-white rounded-2xl border border-[#EAE6DD] shadow-lg py-1.5 z-20 text-xs font-semibold text-[#17201D] animate-in fade-in zoom-in-95">
+              <div className="absolute right-0 bottom-full mb-1.5 w-44 bg-white rounded-2xl border border-[#EAE6DD] shadow-lg py-1.5 z-20 text-xs font-semibold text-[#17201D] animate-in fade-in zoom-in-95">
                 <button
                   type="button"
                   onClick={() => {

@@ -338,8 +338,9 @@ export const budgetService = {
     estimates.food = itinFoodCost > 0 ? itinFoodCost : Math.round(baseBreakdown.activitiesFoodEstimate * 0.55);
     estimates.activities = itinActivitiesCost > 0 ? itinActivitiesCost : Math.round(baseBreakdown.activitiesFoodEstimate * 0.45);
     estimates.transport = baseBreakdown.transportEstimate;
-    estimates.shopping = Math.round(trip.budget * 0.05);
-    estimates.miscellaneous = Math.round(trip.budget * 0.05);
+    const safeBudget = Math.max(0, trip.budget || 0);
+    estimates.shopping = Math.max(0, Math.round(safeBudget * 0.05));
+    estimates.miscellaneous = Math.max(0, Math.round(safeBudget * 0.05));
 
     return estimates;
   },

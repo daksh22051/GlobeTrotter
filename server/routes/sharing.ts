@@ -162,6 +162,57 @@ router.get('/shared/:shareToken', async (req, res, next) => {
   }
 });
 
+// POST /api/shared/:shareToken/copy - copy a public itinerary into the signed-in user's trips
+router.post('/shared/:shareToken/copy', requireAuth, async (req: AuthRequest, res, next) => {
+  try {
+    const { shareToken } = req.params;
+    const db = await getDb();
+    const [link] = await db.select().from(sharedTripLinks).where(and(eq(sharedTripLinks.shareToken, shareToken), eq(sharedTripLinks.isActive, true)));
+    if (!link || (link.expiresAt && new Date(link.expiresAt) < new Date())) throw new AppError('Shared trip link not found or has expired', 404);
+
+    const [sourceTrip] = await db.select().from(trips).where(eq(trips.id, link.tripId));
+    if (!sourceTrip) throw new AppError('Trip not found', 404);
+    const sourceCities = await db.select().from(tripCities).where(eq(tripCities.tripId, sourceTrip.id)).orderBy(asc(tripCities.orderIndex));
+    const [sourceItinerary] = await db.select().from(itineraries).where(eq(itineraries.tripId, sourceTrip.id));
+    const sourceDays = sourceItinerary ? await db.select().from(itineraryDays).where(eq(itineraryDays.itineraryId, sourceItinerary.id)).orderBy(asc(itineraryDays.dayNumber)) : [];
+    const sourceActivities = sourceItinerary ? await db.select().from(itineraryActivities).where(eq(itineraryActivities.itineraryId, sourceItinerary.id)).orderBy(asc(itineraryActivities.orderIndex)) : [];
+    const sourceAllocations = await db.select().from(budgetAllocations).where(eq(budgetAllocations.tripId, sourceTrip.id));
+    const newTripId = 'trip_' + crypto.randomUUID();
+    const now = new Date();
+    const [newTrip] = await db.insert(trips).values({
+      id: newTripId, userId: req.user!.id, name: `${sourceTrip.name} (Copy)`, origin: sourceTrip.origin,
+      originCountry: sourceTrip.originCountry, coverImage: sourceTrip.coverImage, status: 'draft',
+      startDate: sourceTrip.startDate, endDate: sourceTrip.endDate, budget: sourceTrip.budget, currency: sourceTrip.currency,
+      isFavorite: false, isPinned: false, createdAt: now, updatedAt: now,
+    }).returning();
+
+    for (const city of sourceCities) {
+      await db.insert(tripCities).values({ id: 'city_' + crypto.randomUUID(), tripId: newTripId, cityName: city.cityName, country: city.country, orderIndex: city.orderIndex, arrivalDate: city.arrivalDate, departureDate: city.departureDate, stayDurationDays: city.stayDurationDays, latitude: city.latitude, longitude: city.longitude });
+    }
+
+    if (sourceItinerary) {
+      const newItineraryId = 'itin_' + crypto.randomUUID();
+      await db.insert(itineraries).values({ id: newItineraryId, tripId: newTripId, title: sourceItinerary.title, destination: sourceItinerary.destination, country: sourceItinerary.country, createdAt: now, updatedAt: now });
+      const dayIdMap = new Map<string, string>();
+      for (const day of sourceDays) {
+        const newDayId = 'day_' + crypto.randomUUID();
+        dayIdMap.set(day.id, newDayId);
+        await db.insert(itineraryDays).values({ id: newDayId, itineraryId: newItineraryId, dayNumber: day.dayNumber, date: day.date, title: day.title, theme: day.theme });
+      }
+      for (const activity of sourceActivities) {
+        await db.insert(itineraryActivities).values({ id: 'act_' + crypto.randomUUID(), itineraryId: newItineraryId, dayId: activity.dayId ? dayIdMap.get(activity.dayId) || null : null, title: activity.title, category: activity.category, startTime: activity.startTime, durationMinutes: activity.durationMinutes, cost: activity.cost, currency: activity.currency, location: activity.location, latitude: activity.latitude, longitude: activity.longitude, notes: activity.notes, orderIndex: activity.orderIndex, createdAt: now, updatedAt: now });
+      }
+    }
+
+    for (const allocation of sourceAllocations) {
+      await db.insert(budgetAllocations).values({ id: 'alloc_' + crypto.randomUUID(), tripId: newTripId, category: allocation.category, percentage: allocation.percentage, plannedAmount: allocation.plannedAmount });
+    }
+    res.status(201).json({ ...newTrip, id: newTripId });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // GET /api/trips/:tripId/collaborators
 router.get('/trips/:tripId/collaborators', requireAuth, async (req: AuthRequest, res, next) => {
   try {

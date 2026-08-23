@@ -273,7 +273,43 @@ export const itineraryService = {
   getItinerary(tripId: string, trip?: Trip): Itinerary {
     const all = this.getAllItineraries(trip?.userId);
     if (all[tripId]) {
-      const existing = trip ? this.seedTripItems(all[tripId], trip) : all[tripId];
+      let existing = trip ? this.seedTripItems(all[tripId], trip) : all[tripId];
+      if (trip && existing.days.length > 0) {
+        const seenRecommendationIds = new Set<string>();
+        let timelineChanged = false;
+        const days = existing.days.map((day) => ({
+          ...day,
+          activities: day.activities.filter((activity) => {
+            const normalizedTitle = activity.title.trim().toLowerCase();
+            const recommendationKey = activity.recommendationId || '';
+            if (seenRecommendationIds.has(recommendationKey) || seenRecommendationIds.has(normalizedTitle)) {
+              timelineChanged = true;
+              return false;
+            }
+            if (recommendationKey) seenRecommendationIds.add(recommendationKey);
+            seenRecommendationIds.add(normalizedTitle);
+            if (activity.recommendationId === 'udaipur_amrai' || normalizedTitle.includes('amrai waterfront')) {
+              activity.title = 'Amrai Restaurant at Amet Haveli';
+              timelineChanged = true;
+            }
+            return true;
+          }),
+        }));
+        const hasSightseeing = days.some((day) =>
+          day.activities.some((activity) => activity.category === 'place' || activity.category === 'experience')
+        );
+        if (!hasSightseeing) {
+          const recommendations = buildTripRecommendations(trip);
+          const sightseeing = [...recommendations.places, ...recommendations.attractions][0];
+          if (sightseeing && !seenRecommendationIds.has(sightseeing.id)) {
+            days[0].activities.unshift(recommendationToActivity(sightseeing, days[0].dayNumber, '09:30'));
+            timelineChanged = true;
+          }
+        }
+        if (timelineChanged || days.some((day, index) => day.activities.length !== existing.days[index].activities.length)) {
+          existing = { ...existing, days, updatedAt: new Date().toISOString() };
+        }
+      }
       const totalActivities = existing.days.reduce((acc, d) => acc + d.activities.length, 0);
       if (totalActivities > 0) {
         const emptyDays = existing.days.filter((day) => day.activities.length === 0);
@@ -339,15 +375,29 @@ export const itineraryService = {
           ? Number(trip.arrivalTime.split(':')[0]) * 60 + Number(trip.arrivalTime.split(':')[1]) + 90
           : 9 * 60 + 30;
 
-        const orderedItems = [...trip.items].sort((first, second) => {
+        const uniqueItems = Array.from(
+          new Map(trip.items.map((item) => [item.recommendationId, item])).values()
+        );
+        const orderedItems = uniqueItems.sort((first, second) => {
           const categoryOrder: Record<TripItem['type'], number> = {
-            hotel: 0,
-            food: 1,
-            place: 2,
-            experience: 3,
+            place: 0,
+            experience: 1,
+            food: 2,
+            hotel: 3,
           };
           return categoryOrder[first.type] - categoryOrder[second.type];
         });
+
+        // A saved selection can contain only dining items. Add one sightseeing
+        // recommendation so the generated timeline is useful rather than food-only.
+        const hasSightseeing = orderedItems.some((item) => item.type === 'place' || item.type === 'experience');
+        if (!hasSightseeing) {
+          const recommendations = buildTripRecommendations(trip);
+          const sightseeing = [...recommendations.places, ...recommendations.attractions][0];
+          if (sightseeing && !orderedItems.some((item) => item.recommendationId === sightseeing.id)) {
+            orderedItems.unshift(sightseeing as TripItem);
+          }
+        }
 
         orderedItems.forEach((item) => {
           const act = recommendationToActivity(item as any);
@@ -376,7 +426,13 @@ export const itineraryService = {
       } else {
         // Build destination-specific tailored recommendations
         const recs = buildTripRecommendations(trip);
-        const starters = [...recs.hotels, ...recs.food, ...recs.places, ...recs.attractions];
+        const starters = [
+          ...recs.places.slice(0, 2),
+          ...recs.attractions.slice(0, 1),
+          ...recs.food.slice(0, 1),
+          ...recs.hotels.slice(0, 1),
+          ...recs.food.slice(1, 2),
+        ];
 
         let dayIdx = 0;
         const timeSlots = ['09:30', '13:30', '17:00'];

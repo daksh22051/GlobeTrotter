@@ -19,6 +19,7 @@ interface BasicDetailsStepProps {
   childrenCount: number;
   tripType: TripType;
   errors: Record<string, string>;
+  cityDurationMismatch?: string;
   onUpdate: (updates: Partial<{
     name: string;
     destination: string;
@@ -61,6 +62,7 @@ export const BasicDetailsStep: React.FC<BasicDetailsStepProps> = ({
   childrenCount,
   tripType,
   errors,
+  cityDurationMismatch,
   onUpdate,
 }) => {
   const [isMultiCity, setIsMultiCity] = useState(cities.length > 1);
@@ -222,8 +224,8 @@ export const BasicDetailsStep: React.FC<BasicDetailsStepProps> = ({
           </div>
         </div>
 
-        {errors.dates && (
-          <p className="text-xs font-semibold text-[#E55837] mt-1">{errors.dates}</p>
+        {(errors.dates || cityDurationMismatch) && (
+          <p className="text-xs font-semibold text-[#E55837] mt-1">{errors.dates || cityDurationMismatch}</p>
         )}
       </div>
 

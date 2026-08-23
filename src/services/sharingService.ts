@@ -146,6 +146,10 @@ export const sharingService = {
     }
   },
 
+  async copySharedTrip(shareToken: string): Promise<any> {
+    return apiRequest(`/shared/${shareToken}/copy`, { method: 'POST' });
+  },
+
   getSharedTrip(shareToken: string): ShareTripPayload | null {
     const links = this.getAllShareLinks();
     const link = links.find((l) => l.shareToken === shareToken && l.isActive);

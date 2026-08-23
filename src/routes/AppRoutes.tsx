@@ -358,6 +358,7 @@ export const AppRoutes: React.FC = () => {
 
       {/* Feature: Public Shared Trip View (No login required) */}
       <Route path="/shared-trip/:shareToken" element={<SharedTripPage />} />
+      <Route path="/shared/trip/:shareToken" element={<SharedTripPage />} />
 
       <Route
         path="/explore"

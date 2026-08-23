@@ -13,6 +13,10 @@ import {
   ChevronDown,
   ChevronUp,
   Share2,
+  Copy,
+  Check,
+  Mail,
+  MessageCircle,
   FileText,
   Download,
   AlertCircle,
@@ -26,6 +30,7 @@ import { travelGuideService } from '../services/travelGuideService';
 import { ShareTripPayload } from '../types/sharing';
 import { formatCurrency } from '../utils/currency';
 import { CurrencyCode } from '../types/profile';
+import { authService } from '../services/authService';
 
 export const SharedTripPage: React.FC = () => {
   const { shareToken } = useParams<{ shareToken: string }>();
@@ -36,6 +41,9 @@ export const SharedTripPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [activeDayNumber, setActiveDayNumber] = useState<number>(1);
   const [expandedDays, setExpandedDays] = useState<Record<number, boolean>>({ 1: true });
+  const [isCopied, setIsCopied] = useState(false);
+  const [isCopying, setIsCopying] = useState(false);
+  const [copyMessage, setCopyMessage] = useState<string | null>(null);
 
   const loadSharedTrip = async () => {
     setIsLoading(true);
@@ -66,6 +74,43 @@ export const SharedTripPage: React.FC = () => {
 
   const toggleDay = (dayNum: number) => {
     setExpandedDays((prev) => ({ ...prev, [dayNum]: !prev[dayNum] }));
+  };
+
+  const publicUrl = `${window.location.origin}/shared/trip/${shareToken || ''}`;
+
+  const copyPublicUrl = async () => {
+    await navigator.clipboard.writeText(publicUrl);
+    setIsCopied(true);
+    window.setTimeout(() => setIsCopied(false), 2500);
+  };
+
+  const openSocialShare = (network: 'whatsapp' | 'twitter' | 'email') => {
+    const text = `Take a look at my GlobeTrotter itinerary: ${payload?.trip.name || 'my trip'}`;
+    const shareTargets = {
+      whatsapp: `https://wa.me/?text=${encodeURIComponent(`${text} ${publicUrl}`)}`,
+      twitter: `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(publicUrl)}`,
+      email: `mailto:?subject=${encodeURIComponent(text)}&body=${encodeURIComponent(publicUrl)}`,
+    };
+    window.open(shareTargets[network], '_blank', 'noopener,noreferrer');
+  };
+
+  const copyTripToAccount = async () => {
+    if (!shareToken) return;
+    if (!authService.isAuthenticated()) {
+      navigate('/login');
+      return;
+    }
+    setIsCopying(true);
+    setCopyMessage(null);
+    try {
+      const copiedTrip = await sharingService.copySharedTrip(shareToken);
+      navigate(`/trip/${copiedTrip.id}/itinerary`);
+    } catch (err) {
+      console.error(err);
+      setCopyMessage('Could not copy this trip. Please try again.');
+    } finally {
+      setIsCopying(false);
+    }
   };
 
   if (isLoading) {
@@ -148,6 +193,25 @@ export const SharedTripPage: React.FC = () => {
             <span>Create Your Trip</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
+
+          <button
+            type="button"
+            onClick={copyPublicUrl}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-white text-xs font-bold transition-colors cursor-pointer"
+          >
+            {isCopied ? <Check className="w-3.5 h-3.5 text-[#20B8A6]" /> : <Share2 className="w-3.5 h-3.5" />}
+            <span>{isCopied ? 'Copied' : 'Share'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={copyTripToAccount}
+            disabled={isCopying}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#20B8A6] hover:bg-[#179E8E] text-white text-xs font-bold transition-colors cursor-pointer disabled:opacity-60"
+          >
+            <Copy className="w-3.5 h-3.5" />
+            <span>{isCopying ? 'Copying...' : 'Copy Trip'}</span>
+          </button>
         </div>
       </header>
 
@@ -211,6 +275,25 @@ export const SharedTripPage: React.FC = () => {
 
       {/* Main Content Body */}
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-10">
+        {/* Share actions */}
+        <section className="bg-white/70 backdrop-blur-md rounded-3xl border border-[#EAE6DD] p-5 sm:p-6 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-sm sm:text-base font-black text-[#17201D]">Share this itinerary</h2>
+            <p className="text-xs text-[#68736F] mt-1">Send a read-only link to your travel group.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" onClick={copyPublicUrl} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#17201D] text-white text-xs font-bold cursor-pointer">
+              {isCopied ? <Check className="w-3.5 h-3.5 text-[#20B8A6]" /> : <Copy className="w-3.5 h-3.5" />}
+              {isCopied ? 'Copied' : 'Copy link'}
+            </button>
+            <button type="button" onClick={() => openSocialShare('whatsapp')} aria-label="Share on WhatsApp" className="p-2 rounded-xl bg-[#E8F8F5] text-[#179E8E] cursor-pointer"><MessageCircle className="w-4 h-4" /></button>
+            <button type="button" onClick={() => openSocialShare('twitter')} aria-label="Share on X" className="p-2 rounded-xl bg-[#F4F1EA] text-[#17201D] cursor-pointer"><span className="text-xs font-black">X</span></button>
+            <button type="button" onClick={() => openSocialShare('email')} aria-label="Share by email" className="p-2 rounded-xl bg-[#FFF2EE] text-[#FF6B4A] cursor-pointer"><Mail className="w-4 h-4" /></button>
+          </div>
+        </section>
+
+        {copyMessage && <p className="text-xs font-semibold text-[#D9573A] -mt-6">{copyMessage}</p>}
+
         {/* Day by Day Itinerary Stream */}
         <section className="space-y-6">
           <div className="flex items-center justify-between">
@@ -330,6 +413,31 @@ export const SharedTripPage: React.FC = () => {
             })}
           </div>
         </section>
+
+        {budget && (
+          <section className="bg-white/70 backdrop-blur-md rounded-3xl border border-[#EAE6DD] p-6 sm:p-8 shadow-xs">
+            <div className="flex items-start justify-between gap-4 mb-5">
+              <div>
+                <h2 className="text-xl sm:text-2xl font-black text-[#17201D] tracking-tight">Cost breakdown</h2>
+                <p className="text-xs text-[#68736F] mt-1">A clear view of the shared trip budget.</p>
+              </div>
+              <Wallet className="w-5 h-5 text-[#20B8A6]" />
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {[
+                ['Total budget', budget.totalBudget],
+                ['Estimated cost', budget.estimatedCost],
+                ['Spent', budget.actualSpent],
+                ['Remaining', budget.remaining],
+              ].map(([label, value]) => (
+                <div key={label as string} className="rounded-2xl bg-[#FAF8F5] border border-[#F4F1EA] p-4">
+                  <p className="text-[10px] uppercase tracking-wider font-bold text-[#838F8B]">{label}</p>
+                  <p className="text-base sm:text-lg font-black text-[#17201D] mt-1">{formatCurrency(Number(value) || 0, (budget.currency || trip.currency || 'INR') as CurrencyCode)}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Selected Places & Food */}
         {recommendations && (

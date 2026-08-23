@@ -43,6 +43,20 @@ const getCurrencyForCountry = (country: string): CurrencyCode => {
   return 'USD';
 };
 
+const getDateRangeDays = (startDate: string, endDate: string): number => {
+  if (!startDate || !endDate) return 0;
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const difference = end.getTime() - start.getTime();
+  return difference < 0 ? 0 : Math.ceil(difference / (1000 * 60 * 60 * 24)) + 1;
+};
+
+const addDaysToDate = (dateValue: string, days: number): string => {
+  const date = new Date(`${dateValue}T00:00:00`);
+  date.setDate(date.getDate() + Math.max(0, days - 1));
+  return date.toISOString().split('T')[0];
+};
+
 export const PlanTripPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -71,7 +85,7 @@ export const PlanTripPage: React.FC = () => {
   const [childrenCount, setChildrenCount] = useState<number>(0);
   const [tripType, setTripType] = useState<TripType>('leisure');
 
-  const [budget, setBudget] = useState<number>(50000);
+  const [budget, setBudget] = useState<number>(0);
   const [isBudgetConfigured, setIsBudgetConfigured] = useState(false);
   const [currency, setCurrency] = useState<CurrencyCode>('INR');
   const [budgetStyle, setBudgetStyle] = useState<BudgetStyle>('balanced');
@@ -92,6 +106,11 @@ export const PlanTripPage: React.FC = () => {
 
   const destQuery = searchParams.get('dest');
   const isQuickTrip = searchParams.get('quick') === '1' && Boolean(destQuery);
+  const multiCityStayDays = cities.length > 1
+    ? cities.reduce((total, city) => total + Math.max(1, city.stayDurationDays || 1), 0)
+    : 0;
+  const hasMultiCityDateMismatch = multiCityStayDays > 0 && Boolean(startDate && endDate)
+    && getDateRangeDays(startDate, endDate) !== multiCityStayDays;
 
   // Initialize from destination query param or preferences/draft
   useEffect(() => {
@@ -114,8 +133,6 @@ export const PlanTripPage: React.FC = () => {
         const defaultStartDate = new Date();
         const defaultEndDate = new Date(defaultStartDate);
         defaultEndDate.setDate(defaultStartDate.getDate() + defaultDurationDays - 1);
-        const popularityMultiplier = 1 + Math.max(0, match.rating - 4.5) * 0.1;
-        const costMultiplier = match.costIndex === 'Budget' ? 0.9 : match.costIndex === 'Luxury' ? 1.25 : 1;
 
         setDestination(match.name);
         setCountry(match.country);
@@ -126,8 +143,7 @@ export const PlanTripPage: React.FC = () => {
         if (isQuickTrip) {
           setStartDate(defaultStartDate.toISOString().split('T')[0]);
           setEndDate(defaultEndDate.toISOString().split('T')[0]);
-          setBudget(Math.round(match.estimatedDailyBudget * defaultDurationDays * 2 * popularityMultiplier * costMultiplier));
-          setIsBudgetConfigured(true);
+          setBudget(Math.max(0, Math.round(match.estimatedDailyBudget * defaultDurationDays * adultsCount)));
           setInterests(match.tags.slice(0, 3));
           setCities([{
             cityName: match.name,
@@ -277,6 +293,8 @@ export const PlanTripPage: React.FC = () => {
         newErrors.dates = 'Please select your return / end date.';
       } else if (new Date(endDate) < new Date(startDate)) {
         newErrors.dates = 'Return date cannot be earlier than start date.';
+      } else if (hasMultiCityDateMismatch) {
+        newErrors.dates = `Your city stays total ${multiCityStayDays} days. Please use a ${multiCityStayDays}-day date range.`;
       }
     } else if (stepNumber === 2) {
       if (budget <= 0) {
@@ -573,6 +591,7 @@ export const PlanTripPage: React.FC = () => {
                     childrenCount={childrenCount}
                     tripType={tripType}
                     errors={errors}
+                    cityDurationMismatch={hasMultiCityDateMismatch ? `City stays total ${multiCityStayDays} days, but your dates cover ${getDateRangeDays(startDate, endDate)} days.` : undefined}
                     onUpdate={(updates) => {
                       if (updates.name !== undefined) setName(updates.name);
                       if (updates.destination !== undefined) setDestination(updates.destination);
@@ -582,8 +601,19 @@ export const PlanTripPage: React.FC = () => {
                       }
                       if (updates.destinationImage !== undefined) setDestinationImage(updates.destinationImage);
                       if (updates.destinationId !== undefined) setDestinationId(updates.destinationId);
-                      if (updates.cities !== undefined) setCities(updates.cities);
-                      if (updates.startDate !== undefined) setStartDate(updates.startDate);
+                      if (updates.cities !== undefined) {
+                        setCities(updates.cities);
+                        const updatedStayDays = updates.cities.length > 1
+                          ? updates.cities.reduce((total, city) => total + Math.max(1, city.stayDurationDays || 1), 0)
+                          : 0;
+                        if (updatedStayDays > 0 && (updates.startDate || startDate)) {
+                          setEndDate(addDaysToDate(updates.startDate || startDate, updatedStayDays));
+                        }
+                      }
+                      if (updates.startDate !== undefined) {
+                        setStartDate(updates.startDate);
+                        if (multiCityStayDays > 0) setEndDate(addDaysToDate(updates.startDate, multiCityStayDays));
+                      }
                       if (updates.endDate !== undefined) setEndDate(updates.endDate);
                       if (updates.arrivalLocation !== undefined) setArrivalLocation(updates.arrivalLocation);
                       if (updates.arrivalTime !== undefined) setArrivalTime(updates.arrivalTime);

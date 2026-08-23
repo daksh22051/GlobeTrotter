@@ -244,14 +244,26 @@ export const ItineraryPage: React.FC = () => {
     }));
 
     const available = pool.filter((r) => !existingRecIds.has(r.id));
-    const toAdd = (available.length > 0 ? available : pool).slice(0, 3);
-    const timeSlots = ['09:30', '13:30', '17:00'];
-
+    const byCategory = (category: RecommendationCategory) =>
+      available.find((recommendation) => recommendation.category === category);
+    const selected = [
+      byCategory('place'),
+      byCategory('experience'),
+      byCategory('food'),
+    ].filter((recommendation): recommendation is Recommendation => Boolean(recommendation));
+    const toAdd = selected.length > 0 ? selected : available.slice(0, 3);
+    if (toAdd.length === 0) return;
     let updated = itinerary;
-    toAdd.forEach((rec, idx) => {
-      const slot = timeSlots[idx % timeSlots.length];
+    let nextSightseeingTime = 9 * 60 + 30;
+    let diningCount = 0;
+    toAdd.forEach((rec) => {
+      const isDining = rec.category === 'food';
+      const slot = isDining
+        ? (diningCount++ === 0 ? '12:30' : '19:30')
+        : `${Math.floor(nextSightseeingTime / 60).toString().padStart(2, '0')}:${(nextSightseeingTime % 60).toString().padStart(2, '0')}`;
       const act = recommendationToActivity(rec, dayNumber, slot);
       updated = itineraryService.addActivity(updated, act, dayNumber);
+      if (!isDining) nextSightseeingTime += act.durationMinutes + 30;
     });
 
     commitItineraryChange(updated);

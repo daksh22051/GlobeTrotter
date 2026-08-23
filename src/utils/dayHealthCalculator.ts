@@ -270,7 +270,7 @@ export function calculateDayHealth(day: ItineraryDay): DayHealthResult {
   else if (finalScore >= 52) status = 'Busy';
   else status = 'Overloaded';
 
-  const totalCost = activities.reduce((acc, a) => acc + (a.estimatedCost || 0), 0);
+  const totalCost = activities.reduce((acc, a) => acc + Math.max(0, a.estimatedCost || 0), 0);
 
   return {
     dayNumber: day.dayNumber,
@@ -312,16 +312,17 @@ export function calculateItineraryStats(
 
   // Add cost of unscheduled activities to estimated total if added
   const unscheduledCost = (itinerary.unscheduledActivities || []).reduce(
-    (acc, a) => acc + (a.estimatedCost || 0),
+    (acc, a) => acc + Math.max(0, a.estimatedCost || 0),
     0
   );
-  const totalEstimatedCost = totalCost + unscheduledCost;
+  const totalEstimatedCost = Math.max(0, totalCost + unscheduledCost);
 
   const allConflicts = detectAllConflicts(itinerary.days || []);
   const daysCount = Math.max(1, (itinerary.days || []).length);
   const avgHealth = Math.round(sumHealthScores / daysCount);
 
-  const remainingBudget = tripBudget - totalEstimatedCost;
+  const safeTripBudget = Math.max(0, tripBudget || 0);
+  const remainingBudget = Math.max(0, safeTripBudget - totalEstimatedCost);
   const isOverBudget = remainingBudget < 0;
   const overBudgetAmount = isOverBudget ? Math.abs(remainingBudget) : 0;
 
@@ -330,7 +331,7 @@ export function calculateItineraryStats(
     scheduledActivities: totalScheduled,
     unscheduledActivities: unscheduled,
     totalEstimatedCost,
-    tripBudget,
+    tripBudget: safeTripBudget,
     remainingBudget,
     isOverBudget,
     overBudgetAmount,

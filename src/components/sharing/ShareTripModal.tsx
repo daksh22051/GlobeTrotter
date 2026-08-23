@@ -65,7 +65,7 @@ export const ShareTripModal: React.FC<ShareTripModalProps> = ({ isOpen, trip, on
 
   if (!isOpen || !trip) return null;
 
-  const fullShareUrl = `${window.location.origin}/shared-trip/${shareLink?.shareToken || trip.id}`;
+  const fullShareUrl = `${window.location.origin}/shared/trip/${shareLink?.shareToken || trip.id}`;
 
   const handleCopyLink = async () => {
     try {

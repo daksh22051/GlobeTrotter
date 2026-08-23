@@ -81,33 +81,18 @@ export const estimateTripCost = (params: CostEstimationParams): EstimatedCostBre
 
   const baseDailyRateInINR = matched?.estimatedDailyBudget || 5500;
 
-  // 2. Compute multipliers
-  const accomMultiplier = ACCOMMODATION_MULTIPLIERS[accommodationStyle] || 1.0;
-  const tierMultiplier = BUDGET_TIER_MULTIPLIERS[budgetStyle] || 1.0;
-
-  let transportAddonRate = 0;
-  if (transportPreferences.includes('flights')) transportAddonRate += 0.22;
-  if (transportPreferences.includes('road_trip')) transportAddonRate += 0.12;
-  if (transportPreferences.includes('train')) transportAddonRate += 0.08;
-  if (transportPreferences.includes('bus')) transportAddonRate += 0.04;
-  if (transportPreferences.includes('walking')) transportAddonRate -= 0.04;
-
-  const compositeMultiplier = Math.max(0.4, (tierMultiplier * 0.45) + (accomMultiplier * 0.45) + transportAddonRate);
-
-  // Base daily per person in INR
-  const dailyPerPersonInINR = baseDailyRateInINR * compositeMultiplier;
-
-  // Total in INR (applying group sharing savings on accommodation for 2+ travelers)
-  const groupDiscountFactor = validTravelers > 1 ? 0.88 : 1.0;
-  const totalInINR = dailyPerPersonInINR * validDays * validTravelers * groupDiscountFactor;
+  // The destination card is the source of truth for the initial estimate.
+  // Preferences can refine this later when explicit pricing data is available.
+  const dailyPerPersonInINR = Math.max(0, baseDailyRateInINR);
+  const totalInINR = Math.max(0, dailyPerPersonInINR * validDays * validTravelers);
 
   // 3. Convert to user currency
   const totalConverted = convertCurrency(totalInINR, 'INR', activeCurrency);
   const dailyPerPersonConverted = convertCurrency(dailyPerPersonInINR, 'INR', activeCurrency);
 
   // Round to pleasant figures
-  const roundedTotal = Math.round(totalConverted / 100) * 100 || Math.round(totalConverted);
-  const roundedDaily = Math.round(dailyPerPersonConverted / 10) * 10 || Math.round(dailyPerPersonConverted);
+  const roundedTotal = Math.max(0, Math.round(totalConverted / 100) * 100 || Math.round(totalConverted));
+  const roundedDaily = Math.max(0, Math.round(dailyPerPersonConverted / 10) * 10 || Math.round(dailyPerPersonConverted));
 
   // Sub-breakdowns
   const accomPortion = Math.round(roundedTotal * 0.45);
@@ -124,9 +109,9 @@ export const estimateTripCost = (params: CostEstimationParams): EstimatedCostBre
     totalEstimated: roundedTotal,
     dailyAveragePerPerson: roundedDaily,
     dailyRate: roundedDaily,
-    accommodationEstimate: accomPortion,
-    transportEstimate: transPortion,
-    activitiesFoodEstimate: actFoodPortion,
+    accommodationEstimate: Math.max(0, accomPortion),
+    transportEstimate: Math.max(0, transPortion),
+    activitiesFoodEstimate: Math.max(0, actFoodPortion),
     currency: activeCurrency,
     currencySymbol: currConfig.symbol,
     formattedTotal,

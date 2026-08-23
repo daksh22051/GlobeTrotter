@@ -1475,7 +1475,7 @@ export const DESTINATION_RECOMMENDATIONS_DATABASE: Record<string, RawDestination
     food: [
       {
         id: 'udaipur_amrai',
-        name: 'Amrai Waterfront Restaurant (Amet Haveli)',
+        name: 'Amrai Restaurant at Amet Haveli',
         category: 'food',
         description: 'Romantic open-air lakeside terrace restaurant with mesmerizing floodlit views of City Palace and Jagdish Temple, serving authentic Lal Maas and Gatta Curry.',
         image: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=800&q=80',

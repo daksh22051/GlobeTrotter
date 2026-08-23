@@ -84,15 +84,17 @@ export const TripSummary: React.FC<TripSummaryProps> = ({
     };
   }, [startDate, endDate]);
 
+  const hasRequiredCostInputs = hasValidDestination && durationInfo.days > 0 && totalTravelers > 0;
+
   // Estimated Cost calculation (deterministic)
   const costEstimate = React.useMemo(() => {
-    if (!hasValidDestination) {
+    if (!hasRequiredCostInputs) {
       return { totalEstimated: 0, dailyRate: 0 };
     }
 
     return estimateTripCost({
       destination,
-      days: durationInfo.days || 3,
+      days: durationInfo.days,
       travelersCount: totalTravelers,
       budgetStyle: selectedBudgetStyle,
       accommodationStyle: selectedAccommodationStyle,
@@ -107,7 +109,7 @@ export const TripSummary: React.FC<TripSummaryProps> = ({
     selectedAccommodationStyle,
     transportPreferences,
     currency,
-    hasValidDestination,
+    hasRequiredCostInputs,
   ]);
 
   // Planning Readiness calculation
@@ -137,7 +139,8 @@ export const TripSummary: React.FC<TripSummaryProps> = ({
     transportPreferences,
   ]);
 
-  const hasTargetBudget = hasValidDestination && isBudgetConfigured && budget > 0;
+  const safeBudget = Math.max(0, budget || 0);
+  const hasTargetBudget = hasValidDestination && isBudgetConfigured && safeBudget > 0;
   const isOverBudget = hasTargetBudget && costEstimate.totalEstimated > budget;
   const isWellBudgeted = hasTargetBudget && costEstimate.totalEstimated <= budget;
 
@@ -170,7 +173,7 @@ export const TripSummary: React.FC<TripSummaryProps> = ({
 
         <div className="flex items-center gap-2">
           <span className="text-xs font-black text-[#FF6B4A]">
-            {isBudgetConfigured ? `${currConfig.symbol}${budget.toLocaleString()}` : 'Not set'}
+            {isBudgetConfigured && safeBudget > 0 ? `${currConfig.symbol}${safeBudget.toLocaleString()}` : 'Not set'}
           </span>
           {isMobileExpanded ? (
             <ChevronUp className="w-4 h-4 text-[#98A29F]" />
@@ -282,7 +285,7 @@ export const TripSummary: React.FC<TripSummaryProps> = ({
               <span>Your Target</span>
             </span>
             <span className="font-black text-[#FF6B4A]">
-              {isBudgetConfigured ? `${currConfig.symbol}${budget.toLocaleString()} ${currency}` : 'Not set'}
+              {isBudgetConfigured && safeBudget > 0 ? `${currConfig.symbol}${safeBudget.toLocaleString()} ${currency}` : 'Not set'}
             </span>
           </div>
         </div>
@@ -313,10 +316,10 @@ export const TripSummary: React.FC<TripSummaryProps> = ({
 
           <div className="flex items-baseline justify-between">
             <span className="text-lg font-black text-[#17201D]">
-              ~{currConfig.symbol}{costEstimate.totalEstimated.toLocaleString()}
+              {hasRequiredCostInputs ? `~${currConfig.symbol}${Math.max(0, costEstimate.totalEstimated).toLocaleString()}` : 'Pending input'}
             </span>
             <span className="text-[11px] text-[#68736F] font-medium">
-              ~{currConfig.symbol}{costEstimate.dailyRate.toLocaleString()} / day
+              {hasRequiredCostInputs ? `~${currConfig.symbol}${Math.max(0, costEstimate.dailyRate).toLocaleString()} / day` : 'Add dates and travellers'}
             </span>
           </div>
 
